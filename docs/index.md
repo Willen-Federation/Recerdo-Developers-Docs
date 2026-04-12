@@ -21,32 +21,32 @@ hero:
       link: /api/overview
 
 features:
-  - icon: \uD83D\uDD10
+  - icon: 🔐
     title: Auth Service
     details: AWS Cognito integration, JWT authentication, user sessions, and device tracking. Secure multi-tenant access control.
     link: /api/auth
     linkText: Auth API Reference
-  - icon: \uD83C\uDFD7\uFE0F
+  - icon: 🏗️
     title: Core Service
     details: User management, organizations, roles, events, timeline, and invitation workflows.
     link: /api/core
     linkText: Core API Reference
-  - icon: \uD83D\uDCF8
+  - icon: 📸
     title: Storage Service
-    details: Media upload with chunked support, HEIC\u2192PNG auto-conversion, thumbnail generation, and optimized delivery.
+    details: Media upload with chunked support, HEIC→PNG auto-conversion, thumbnail generation, and optimized delivery.
     link: /api/storage
     linkText: Storage API Reference
-  - icon: \uD83D\uDDBC\uFE0F
+  - icon: 🖼️
     title: Album Service
     details: Album creation, media and comment linking, highlight video management, and access control.
     link: /api/album
     linkText: Album API Reference
-  - icon: \uD83D\uDD0D
+  - icon: 🔍
     title: Interactive Explorer
-    details: Try API calls directly in the browser using the embedded Swagger UI. Authenticate with your JWT and send real requests.
+    details: Browse endpoints, request/response schemas, and example payloads in the embedded Swagger UI.
     link: /api/explorer
     linkText: Open API Explorer
-  - icon: \uD83D\uDEE0\uFE0F
+  - icon: 🛠️
     title: Admin CLI
     details: Register and manage microservice admin panels using the recuerdo-admin CLI and the RSP v1 protocol.
     link: /cli/overview

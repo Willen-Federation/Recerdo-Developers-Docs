@@ -8,7 +8,7 @@ export default defineConfig({
   title: 'Recuerdo Developer Docs',
   description:
     'Official API reference, integration guides, and CLI documentation for the Recuerdo platform — a multi-tenant media management system.',
-  lang: 'ja',
+  lang: 'en',
 
   // Make the API base URL available to the theme
   vite: {
@@ -33,7 +33,7 @@ export default defineConfig({
   ],
 
   themeConfig: {
-    logo: '\uD83D\uDCF8',
+    logo: '📸',
 
     // Top navigation
     nav: [
@@ -76,7 +76,7 @@ export default defineConfig({
         ],
       },
       {
-        text: '\uD83D\uDD0D Interactive Explorer',
+        text: '🔍 Interactive Explorer',
         collapsed: false,
         items: [{ text: 'API Explorer (Swagger UI)', link: '/api/explorer' }],
       },
@@ -111,8 +111,8 @@ export default defineConfig({
 
     // Footer
     footer: {
-      message: 'Released under the MIT License.',
-      copyright: 'Copyright \u00A9 2026 Willen-Federation',
+      message: 'Official Recuerdo developer documentation.',
+      copyright: 'Copyright © 2026 Willen-Federation',
     },
 
     // Edit link

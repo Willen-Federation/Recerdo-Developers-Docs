@@ -5,12 +5,6 @@
 [build.environment]
   NODE_VERSION = "20"
 
-# Redirect all routes to index for SPA-style navigation
-[[redirects]]
-  from = "/*"
-  to = "/index.html"
-  status = 200
-
 # Security headers
 [[headers]]
   for = "/*"
