@@ -6,3 +6,9 @@ docs/.vitepress/cache/
 .env
 .env.*
 !.env.example
+
+# Hugo
+public/
+resources/
+.hugo_build.lock
+assets/jsconfig.json

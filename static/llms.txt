@@ -1,0 +1,50 @@
+# Recuerdo API - Developer Documentation
+# https://recuerdo-developers-docs.netlify.app
+#
+# This file helps AI assistants and LLM tools understand the available documentation.
+# Format: llms.txt v1 (https://llmstxt.org)
+
+# Overview
+Recuerdo is a multi-tenant media management platform built with Go microservices.
+It provides APIs for authentication, user/organization management, media upload/delivery,
+album management, and API telemetry.
+
+## Documentation Pages
+
+> Getting Started
+- [Introduction & Quick Start](https://recuerdo-developers-docs.netlify.app/guide/getting-started): Base URL, first API call, request headers, org_id usage
+- [Authentication](https://recuerdo-developers-docs.netlify.app/guide/authentication): JWT tokens, AWS Cognito, token refresh, user roles
+- [Media Upload](https://recuerdo-developers-docs.netlify.app/guide/media-upload): Standard upload, chunked upload, HEIC conversion, delivery options
+
+> API Reference
+- [Architecture Overview](https://recuerdo-developers-docs.netlify.app/api/overview): Microservices diagram, service ports, multi-tenancy, tech stack
+- [Auth Service](https://recuerdo-developers-docs.netlify.app/api/auth): Login, logout, token refresh, Cognito sync endpoints
+- [Core Service](https://recuerdo-developers-docs.netlify.app/api/core): Users, organizations, events, invitations, timeline endpoints
+- [Storage Service](https://recuerdo-developers-docs.netlify.app/api/storage): Media upload, chunked upload, delivery with type parameter
+- [Album Service](https://recuerdo-developers-docs.netlify.app/api/album): Album listing, event album with cover/highlight/media
+- [Metrics Service](https://recuerdo-developers-docs.netlify.app/api/metrics): Access logs, API telemetry (admin only)
+- [Interactive API Explorer](https://recuerdo-developers-docs.netlify.app/api/explorer): Swagger UI with service filter tabs
+
+> Admin CLI
+- [CLI Overview](https://recuerdo-developers-docs.netlify.app/cli/overview): Installation, commands (init/add/remove/list/status/validate)
+- [RSP v1 Protocol](https://recuerdo-developers-docs.netlify.app/cli/rsp-protocol): Service manifest schema, health check spec, registry format
+
+## OpenAPI Specification
+
+The full OpenAPI 3.0 specification is available at:
+https://api.yourdomain.com/api/docs/openapi.yaml
+
+Services and their Swagger filter tags:
+- Auth Service: login, logout, token management
+- Core Service: users, orgs, events, invitations, timeline, feature-flags
+- Storage Service: media upload and delivery
+- Album Service: albums and event media
+- Metrics Service: access logs and telemetry
+
+## Key Concepts
+
+- Multi-tenancy: all data is isolated by org_id in URL paths
+- Authentication: AWS Cognito JWT (RS256) via Bearer token
+- Base URL: https://api.yourdomain.com (single gateway for all services)
+- HEIC support: automatic HEIC-to-PNG conversion for non-Apple clients
+- Chunked upload: for large files via /upload + /merge endpoints
