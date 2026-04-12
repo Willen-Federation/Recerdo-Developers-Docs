@@ -4,7 +4,7 @@
 
 Official API reference, integration guides, and CLI documentation for the **Recuerdo** platform — a multi-tenant media management system built with Go microservices.
 
-**Live site**: https://recuerdo-developers-docs.netlify.app/
+**Live site**: https://recerdo-developers-docs.netlify.app/
 
 ## Tech Stack
 

@@ -1,5 +1,5 @@
 # Recuerdo API - Developer Documentation
-# https://recuerdo-developers-docs.netlify.app
+# https://recerdo-developers-docs.netlify.app
 #
 # This file helps AI assistants and LLM tools understand the available documentation.
 # Format: llms.txt v1 (https://llmstxt.org)
@@ -12,22 +12,22 @@ album management, and API telemetry.
 ## Documentation Pages
 
 > Getting Started
-- [Introduction & Quick Start](https://recuerdo-developers-docs.netlify.app/guide/getting-started): Base URL, first API call, request headers, org_id usage
-- [Authentication](https://recuerdo-developers-docs.netlify.app/guide/authentication): JWT tokens, AWS Cognito, token refresh, user roles
-- [Media Upload](https://recuerdo-developers-docs.netlify.app/guide/media-upload): Standard upload, chunked upload, HEIC conversion, delivery options
+- [Introduction & Quick Start](https://recerdo-developers-docs.netlify.app/guide/getting-started): Base URL, first API call, request headers, org_id usage
+- [Authentication](https://recerdo-developers-docs.netlify.app/guide/authentication): JWT tokens, AWS Cognito, token refresh, user roles
+- [Media Upload](https://recerdo-developers-docs.netlify.app/guide/media-upload): Standard upload, chunked upload, HEIC conversion, delivery options
 
 > API Reference
-- [Architecture Overview](https://recuerdo-developers-docs.netlify.app/api/overview): Microservices diagram, service ports, multi-tenancy, tech stack
-- [Auth Service](https://recuerdo-developers-docs.netlify.app/api/auth): Login, logout, token refresh, Cognito sync endpoints
-- [Core Service](https://recuerdo-developers-docs.netlify.app/api/core): Users, organizations, events, invitations, timeline endpoints
-- [Storage Service](https://recuerdo-developers-docs.netlify.app/api/storage): Media upload, chunked upload, delivery with type parameter
-- [Album Service](https://recuerdo-developers-docs.netlify.app/api/album): Album listing, event album with cover/highlight/media
-- [Metrics Service](https://recuerdo-developers-docs.netlify.app/api/metrics): Access logs, API telemetry (admin only)
-- [Interactive API Explorer](https://recuerdo-developers-docs.netlify.app/api/explorer): Swagger UI with service filter tabs
+- [Architecture Overview](https://recerdo-developers-docs.netlify.app/api/overview): Microservices diagram, service ports, multi-tenancy, tech stack
+- [Auth Service](https://recerdo-developers-docs.netlify.app/api/auth): Login, logout, token refresh, Cognito sync endpoints
+- [Core Service](https://recerdo-developers-docs.netlify.app/api/core): Users, organizations, events, invitations, timeline endpoints
+- [Storage Service](https://recerdo-developers-docs.netlify.app/api/storage): Media upload, chunked upload, delivery with type parameter
+- [Album Service](https://recerdo-developers-docs.netlify.app/api/album): Album listing, event album with cover/highlight/media
+- [Metrics Service](https://recerdo-developers-docs.netlify.app/api/metrics): Access logs, API telemetry (admin only)
+- [Interactive API Explorer](https://recerdo-developers-docs.netlify.app/api/explorer): Swagger UI with service filter tabs
 
 > Admin CLI
-- [CLI Overview](https://recuerdo-developers-docs.netlify.app/cli/overview): Installation, commands (init/add/remove/list/status/validate)
-- [RSP v1 Protocol](https://recuerdo-developers-docs.netlify.app/cli/rsp-protocol): Service manifest schema, health check spec, registry format
+- [CLI Overview](https://recerdo-developers-docs.netlify.app/cli/overview): Installation, commands (init/add/remove/list/status/validate)
+- [RSP v1 Protocol](https://recerdo-developers-docs.netlify.app/cli/rsp-protocol): Service manifest schema, health check spec, registry format
 
 ## OpenAPI Specification
 
