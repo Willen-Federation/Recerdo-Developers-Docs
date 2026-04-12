@@ -11,3 +11,4 @@ docs/.vitepress/cache/
 public/
 resources/
 .hugo_build.lock
+assets/jsconfig.json

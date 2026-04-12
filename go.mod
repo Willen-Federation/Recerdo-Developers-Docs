@@ -1,4 +1,4 @@
-module github.com/willen-federation/recerdo-developers-docs
+module github.com/willen-federation/recuerdo-developers-docs
 
 go 1.21
 
