@@ -14,114 +14,104 @@
       </button>
     </div>
 
-    <!-- API Base URL notice -->
-    <div v-if="specError" class="spec-error">
+    <!-- Error state -->
+    <div v-if="specError" class="spec-error" style="padding:1rem;background:#fff3cd;border:1px solid #ffc107;border-radius:6px;margin-bottom:1rem;">
       <strong>\u26A0\uFE0F Could not load OpenAPI spec.</strong>
-      Make sure the backend is running and accessible at
-      <code>{{ apiBaseUrl }}</code>
+      Check that the API is accessible and has CORS enabled for this origin.
+      Spec URL: <code>{{ specUrl }}</code>
     </div>
 
     <!-- Swagger UI mount point -->
-    <div
-      ref="swaggerContainer"
-      class="swagger-ui-container"
-      style="min-height: 600px"
-    />
+    <div ref="swaggerMount" class="swagger-ui-container" />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted, watch } from 'vue'
 
+// Injected at build time via vite.define in .vitepress/config.ts
 declare const __API_BASE_URL__: string
 
-const apiBaseUrl = typeof __API_BASE_URL__ !== 'undefined'
-  ? __API_BASE_URL__
-  : 'https://api.yourdomain.com'
+const apiBaseUrl = (() => {
+  try {
+    return __API_BASE_URL__ || 'https://api.yourdomain.com'
+  } catch {
+    return 'https://api.yourdomain.com'
+  }
+})()
 
 const specUrl = `${apiBaseUrl}/api/docs/openapi.yaml`
 
-// Service tabs definition
 const tabs = [
-  { id: 'all',     label: 'All Services',    icon: '\uD83D\uDD0D', filterTag: undefined },
-  { id: 'auth',    label: 'Auth Service',     icon: '\uD83D\uDD10', filterTag: 'Auth Service' },
-  { id: 'core',    label: 'Core Service',     icon: '\uD83C\uDFD7\uFE0F', filterTag: 'Core Service' },
-  { id: 'storage', label: 'Storage Service',  icon: '\uD83D\uDCF8', filterTag: 'Storage Service' },
-  { id: 'album',   label: 'Album Service',    icon: '\uD83D\uDDBC\uFE0F', filterTag: 'Album Service' },
-  { id: 'metrics', label: 'Metrics Service',  icon: '\uD83D\uDCCA', filterTag: 'Metrics Service' },
+  { id: 'all',     label: 'All Services',   icon: '\uD83D\uDD0D', filterTag: '' },
+  { id: 'auth',    label: 'Auth Service',    icon: '\uD83D\uDD10', filterTag: 'Auth Service' },
+  { id: 'core',    label: 'Core Service',    icon: '\uD83C\uDFD7\uFE0F', filterTag: 'Core Service' },
+  { id: 'storage', label: 'Storage Service', icon: '\uD83D\uDCF8', filterTag: 'Storage Service' },
+  { id: 'album',   label: 'Album Service',   icon: '\uD83D\uDDBC\uFE0F', filterTag: 'Album Service' },
+  { id: 'metrics', label: 'Metrics Service', icon: '\uD83D\uDCCA', filterTag: 'Metrics Service' },
 ]
 
-const activeTab    = ref('all')
-const specError    = ref(false)
-const swaggerContainer = ref<HTMLElement | null>(null)
-let   swaggerUiInstance: any = null
+const activeTab  = ref('all')
+const specError  = ref(false)
+const swaggerMount = ref<HTMLElement | null>(null)
+let   ui: any = null
+
+async function initSwagger() {
+  if (!swaggerMount.value) return
+  specError.value = false
+
+  try {
+    // Dynamic import: runs only in the browser (ClientOnly wrapper ensures this)
+    const [{ default: SwaggerUIBundle }, { default: SwaggerUIStandalonePreset }] = await Promise.all([
+      import('swagger-ui-dist/swagger-ui-bundle.js'),
+      import('swagger-ui-dist/swagger-ui-standalone-preset.js'),
+    ])
+
+    // Inject Swagger UI CSS dynamically
+    if (!document.querySelector('link[data-swagger-ui-css]')) {
+      const link = document.createElement('link')
+      link.rel = 'stylesheet'
+      link.href = new URL('swagger-ui-dist/swagger-ui.css', import.meta.url).href
+      link.setAttribute('data-swagger-ui-css', '')
+      document.head.appendChild(link)
+    }
+
+    const currentFilter = tabs.find(t => t.id === activeTab.value)?.filterTag ?? ''
+
+    ui = SwaggerUIBundle({
+      url: specUrl,
+      domNode: swaggerMount.value,
+      presets: [
+        SwaggerUIBundle.presets.apis,
+        SwaggerUIStandalonePreset,
+      ],
+      plugins: [SwaggerUIBundle.plugins.DownloadUrl],
+      layout: 'StandaloneLayout',
+      docExpansion: 'list',
+      defaultModelsExpandDepth: -1,
+      filter: currentFilter || false,
+      tryItOutEnabled: false, // Disabled for public docs (CORS)
+      onComplete: () => { specError.value = false },
+      onFailure: () => { specError.value = true },
+    })
+  } catch (e) {
+    console.error('[SwaggerExplorer] Failed to initialize:', e)
+    specError.value = true
+  }
+}
 
 function setTab(id: string) {
   activeTab.value = id
 }
 
-async function initSwagger() {
-  if (!swaggerContainer.value) return
-
-  try {
-    // Dynamically import swagger-ui-dist (client-side only)
-    const SwaggerUIBundle = (await import('swagger-ui-dist/swagger-ui-bundle.js' as any)).default
-    await import('swagger-ui-dist/swagger-ui.css' as any)
-
-    const currentTab = tabs.find(t => t.id === activeTab.value)
-    const filterTag  = currentTab?.filterTag
-
-    swaggerUiInstance = SwaggerUIBundle({
-      url: specUrl,
-      dom_id: '#swagger-mount',
-      presets: [SwaggerUIBundle.presets.apis, SwaggerUIBundle.SwaggerUIStandalonePreset],
-      layout: 'BaseLayout',
-      docExpansion: 'list',
-      defaultModelsExpandDepth: -1,
-      filter: filterTag ?? false,
-      onComplete: () => {
-        specError.value = false
-      },
-      onFailure: () => {
-        specError.value = true
-      },
-    })
-
-    // Mount into the ref element
-    const mountEl = document.createElement('div')
-    mountEl.id = 'swagger-mount'
-    swaggerContainer.value.innerHTML = ''
-    swaggerContainer.value.appendChild(mountEl)
-
-    swaggerUiInstance = SwaggerUIBundle({
-      url: specUrl,
-      dom_id: '#swagger-mount',
-      presets: [SwaggerUIBundle.presets.apis],
-      layout: 'BaseLayout',
-      docExpansion: 'list',
-      defaultModelsExpandDepth: -1,
-      filter: filterTag ?? false,
-    })
-  } catch (e) {
-    console.error('Failed to init Swagger UI', e)
-    specError.value = true
-  }
-}
-
-function reloadSwagger() {
-  if (!swaggerContainer.value) return
-  if (!swaggerUiInstance) { initSwagger(); return }
-
-  const currentTab = tabs.find(t => t.id === activeTab.value)
-  const filterTag  = currentTab?.filterTag
-  swaggerUiInstance.getSystem().filterActions.updateFilter(filterTag ?? '')
-}
-
-onMounted(() => {
+watch(activeTab, (newTab) => {
+  if (!ui) return
+  const filterTag = tabs.find(t => t.id === newTab)?.filterTag ?? ''
+  // Re-initialize with new filter (simpler than using internal Swagger UI actions)
   initSwagger()
 })
 
-watch(activeTab, () => {
-  reloadSwagger()
+onMounted(() => {
+  initSwagger()
 })
 </script>
