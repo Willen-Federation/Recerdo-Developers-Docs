@@ -1,9 +1,9 @@
 [build]
-  command = "npm run docs:build"
-  publish = "docs/.vitepress/dist"
+  command = "npm install && hugo"
+  publish = "public"
 
 [build.environment]
-  NODE_VERSION = "20"
+  HUGO_VERSION = "0.147.0"
 
 # Security headers
 [[headers]]

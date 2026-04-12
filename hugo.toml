@@ -1,0 +1,21 @@
+baseURL = "https://recuerdo-developers-docs.netlify.app/"
+title = "Recuerdo Developer Docs"
+languageCode = "en"
+
+[markup.highlight]
+  style = "monokai"
+  codeFences = true
+  guessSyntax = false
+
+[markup.goldmark.renderer]
+  unsafe = true
+
+[markup.goldmark.extensions.passthrough]
+  enable = true
+
+[[module.imports]]
+  path = "github.com/bep/docuapi/v2"
+
+[params]
+  search = true
+  languageTabs = ["Shell", "Go", "Javascript", "Python"]
