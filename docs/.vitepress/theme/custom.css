@@ -1,5 +1,8 @@
-/* Custom styles for Recuerdo Developer Docs */
+/* =================================================
+   Recuerdo Developer Docs — Custom VitePress Theme
+   ================================================= */
 
+/* Brand colors */
 :root {
   --vp-c-brand-1: #6366F1;
   --vp-c-brand-2: #818CF8;
@@ -7,13 +10,33 @@
   --vp-c-brand-soft: rgba(99, 102, 241, 0.14);
 }
 
-/* Swagger Explorer page: full width, no sidebar padding constraints */
-.swagger-explorer-page {
-  width: 100%;
-  max-width: 100%;
+/* =================================================
+   Swagger UI Integration
+   ================================================= */
+
+/* Hide the default Swagger topbar (redundant with our tabs) */
+.swagger-ui .topbar {
+  display: none !important;
 }
 
-/* Service tabs */
+/* Remove default Swagger UI info block on explorer page */
+.swagger-ui .information-container {
+  display: none;
+}
+
+/* Swagger UI container */
+.swagger-ui-container {
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 8px;
+  overflow: hidden;
+  min-height: 400px;
+  background: #fff;
+}
+
+/* =================================================
+   Service Filter Tabs (API Explorer)
+   ================================================= */
+
 .swagger-service-tabs {
   display: flex;
   flex-wrap: wrap;
@@ -38,11 +61,13 @@
   display: flex;
   align-items: center;
   gap: 0.4rem;
+  line-height: 1.4;
 }
 
 .swagger-tab-btn:hover {
   border-color: var(--vp-c-brand-1);
   color: var(--vp-c-brand-1);
+  background: var(--vp-c-brand-soft);
 }
 
 .swagger-tab-btn.active {
@@ -52,14 +77,14 @@
   font-weight: 600;
 }
 
-/* Swagger UI container */
-.swagger-ui-container {
-  border: 1px solid var(--vp-c-divider);
-  border-radius: 8px;
-  overflow: hidden;
-  min-height: 500px;
-}
-
-.swagger-ui-container .swagger-ui .topbar {
-  display: none !important;
+/* Responsive: stack on small screens */
+@media (max-width: 640px) {
+  .swagger-service-tabs {
+    gap: 0.35rem;
+    padding: 0.5rem;
+  }
+  .swagger-tab-btn {
+    font-size: 0.78rem;
+    padding: 0.3rem 0.6rem;
+  }
 }

@@ -14,30 +14,42 @@
       </button>
     </div>
 
-    <!-- Error state -->
-    <div v-if="specError" class="spec-error" style="padding:1rem;background:#fff3cd;border:1px solid #ffc107;border-radius:6px;margin-bottom:1rem;">
-      <strong>\u26A0\uFE0F Could not load OpenAPI spec.</strong>
-      Check that the API is accessible and has CORS enabled for this origin.
-      Spec URL: <code>{{ specUrl }}</code>
+    <!-- Error notice -->
+    <div
+      v-if="specError"
+      style="
+        padding: 0.75rem 1rem;
+        margin-bottom: 1rem;
+        background: #fff3cd;
+        border: 1px solid #f59e0b;
+        border-radius: 6px;
+        font-size: 0.9rem;
+      "
+    >
+      <strong>\u26A0\uFE0F OpenAPI spec could not be loaded.</strong>
+      The production API (<code>{{ apiBaseUrl }}</code>) may be unavailable or
+      CORS may not be configured for this origin. For local testing, use
+      <a href="http://localhost:8080/swagger/" target="_blank">localhost:8080/swagger/</a>.
+    </div>
+
+    <!-- Loading state -->
+    <div v-if="loading" style="padding: 2rem; text-align: center; color: var(--vp-c-text-2);">
+      Loading API Explorer\u2026
     </div>
 
     <!-- Swagger UI mount point -->
-    <div ref="swaggerMount" class="swagger-ui-container" />
+    <div ref="swaggerMount" class="swagger-ui-container" :style="loading ? 'display:none' : ''" />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted, watch } from 'vue'
 
-// Injected at build time via vite.define in .vitepress/config.ts
 declare const __API_BASE_URL__: string
 
 const apiBaseUrl = (() => {
-  try {
-    return __API_BASE_URL__ || 'https://api.yourdomain.com'
-  } catch {
-    return 'https://api.yourdomain.com'
-  }
+  try { return __API_BASE_URL__ || 'https://api.yourdomain.com' }
+  catch { return 'https://api.yourdomain.com' }
 })()
 
 const specUrl = `${apiBaseUrl}/api/docs/openapi.yaml`
@@ -51,34 +63,26 @@ const tabs = [
   { id: 'metrics', label: 'Metrics Service', icon: '\uD83D\uDCCA', filterTag: 'Metrics Service' },
 ]
 
-const activeTab  = ref('all')
-const specError  = ref(false)
+const activeTab    = ref('all')
+const specError    = ref(false)
+const loading      = ref(true)
 const swaggerMount = ref<HTMLElement | null>(null)
-let   ui: any = null
 
 async function initSwagger() {
   if (!swaggerMount.value) return
+  loading.value = true
   specError.value = false
 
-  try {
-    // Dynamic import: runs only in the browser (ClientOnly wrapper ensures this)
-    const [{ default: SwaggerUIBundle }, { default: SwaggerUIStandalonePreset }] = await Promise.all([
-      import('swagger-ui-dist/swagger-ui-bundle.js'),
-      import('swagger-ui-dist/swagger-ui-standalone-preset.js'),
-    ])
+  // Clear previous content
+  swaggerMount.value.innerHTML = ''
 
-    // Inject Swagger UI CSS dynamically
-    if (!document.querySelector('link[data-swagger-ui-css]')) {
-      const link = document.createElement('link')
-      link.rel = 'stylesheet'
-      link.href = new URL('swagger-ui-dist/swagger-ui.css', import.meta.url).href
-      link.setAttribute('data-swagger-ui-css', '')
-      document.head.appendChild(link)
-    }
+  try {
+    const SwaggerUIBundle = (await import('swagger-ui-dist/swagger-ui-bundle.js')).default
+    const SwaggerUIStandalonePreset = (await import('swagger-ui-dist/swagger-ui-standalone-preset.js')).default
 
     const currentFilter = tabs.find(t => t.id === activeTab.value)?.filterTag ?? ''
 
-    ui = SwaggerUIBundle({
+    SwaggerUIBundle({
       url: specUrl,
       domNode: swaggerMount.value,
       presets: [
@@ -90,12 +94,20 @@ async function initSwagger() {
       docExpansion: 'list',
       defaultModelsExpandDepth: -1,
       filter: currentFilter || false,
-      tryItOutEnabled: false, // Disabled for public docs (CORS)
-      onComplete: () => { specError.value = false },
-      onFailure: () => { specError.value = true },
+      // Disable try-it-out for public docs (CORS)
+      supportedSubmitMethods: [],
+      onComplete: () => {
+        loading.value = false
+        specError.value = false
+      },
+      onFailure: () => {
+        loading.value = false
+        specError.value = true
+      },
     })
   } catch (e) {
-    console.error('[SwaggerExplorer] Failed to initialize:', e)
+    console.error('[SwaggerExplorer] Init failed:', e)
+    loading.value = false
     specError.value = true
   }
 }
@@ -104,10 +116,7 @@ function setTab(id: string) {
   activeTab.value = id
 }
 
-watch(activeTab, (newTab) => {
-  if (!ui) return
-  const filterTag = tabs.find(t => t.id === newTab)?.filterTag ?? ''
-  // Re-initialize with new filter (simpler than using internal Swagger UI actions)
+watch(activeTab, () => {
   initSwagger()
 })
 
