@@ -1,0 +1,65 @@
+/* Custom styles for Recuerdo Developer Docs */
+
+:root {
+  --vp-c-brand-1: #6366F1;
+  --vp-c-brand-2: #818CF8;
+  --vp-c-brand-3: #A5B4FC;
+  --vp-c-brand-soft: rgba(99, 102, 241, 0.14);
+}
+
+/* Swagger Explorer page: full width, no sidebar padding constraints */
+.swagger-explorer-page {
+  width: 100%;
+  max-width: 100%;
+}
+
+/* Service tabs */
+.swagger-service-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1.25rem;
+  padding: 0.75rem;
+  background: var(--vp-c-bg-soft);
+  border-radius: 8px;
+  border: 1px solid var(--vp-c-divider);
+}
+
+.swagger-tab-btn {
+  padding: 0.35rem 0.9rem;
+  border-radius: 6px;
+  border: 1px solid var(--vp-c-divider);
+  background: var(--vp-c-bg);
+  color: var(--vp-c-text-2);
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.swagger-tab-btn:hover {
+  border-color: var(--vp-c-brand-1);
+  color: var(--vp-c-brand-1);
+}
+
+.swagger-tab-btn.active {
+  background: var(--vp-c-brand-soft);
+  border-color: var(--vp-c-brand-1);
+  color: var(--vp-c-brand-1);
+  font-weight: 600;
+}
+
+/* Swagger UI container */
+.swagger-ui-container {
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 8px;
+  overflow: hidden;
+  min-height: 500px;
+}
+
+.swagger-ui-container .swagger-ui .topbar {
+  display: none !important;
+}
