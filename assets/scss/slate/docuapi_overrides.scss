@@ -1,0 +1,40 @@
+// Recuerdo brand color overrides for DocuAPI theme
+:root {
+  --brand-color: #6366F1;
+}
+
+// Aside callout accessibility improvements (WCAG AA compliant contrast)
+// Default theme colors have poor contrast ratios on colored backgrounds.
+// Using light backgrounds with dark text for readability.
+
+.content aside {
+  color: #1e3a5f;
+  border-radius: 4px;
+
+  code {
+    background-color: rgba(0, 0, 0, 0.08);
+    color: inherit;
+  }
+
+  strong {
+    color: inherit;
+  }
+}
+
+.content aside.warning {
+  background-color: #fef2f2;
+  color: #7f1d1d;
+  border-left: 4px solid #dc2626;
+}
+
+.content aside.notice {
+  background-color: #eff6ff;
+  color: #1e3a5f;
+  border-left: 4px solid #3b82f6;
+}
+
+.content aside.success {
+  background-color: #f0fdf4;
+  color: #14532d;
+  border-left: 4px solid #22c55e;
+}
