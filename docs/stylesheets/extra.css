@@ -1,0 +1,73 @@
+/* Recerdo custom styles */
+
+:root {
+  --md-primary-fg-color: #4A6CF7;
+  --md-primary-fg-color--light: #6B8AF9;
+  --md-primary-fg-color--dark: #2D4ED8;
+  --md-accent-fg-color: #FF6B6B;
+}
+
+/* Header */
+.md-header {
+  background: linear-gradient(135deg, #4A6CF7 0%, #7C3AED 100%);
+}
+
+/* Navigation tabs */
+.md-tabs {
+  background: linear-gradient(135deg, #3D5CE6 0%, #6D2FDB 100%);
+}
+
+/* Code blocks */
+.md-typeset code {
+  border-radius: 4px;
+}
+
+/* Table styles */
+.md-typeset table:not([class]) th {
+  background-color: var(--md-primary-fg-color);
+  color: white;
+}
+
+/* Admonition custom colors */
+.md-typeset .admonition.service,
+.md-typeset details.service {
+  border-color: #4A6CF7;
+}
+
+.md-typeset .service > .admonition-title,
+.md-typeset .service > summary {
+  background-color: rgba(74, 108, 247, 0.1);
+}
+
+.md-typeset .service > .admonition-title::before,
+.md-typeset .service > summary::before {
+  background-color: #4A6CF7;
+}
+
+/* Status badges */
+.status-draft {
+  background: #FEF3C7;
+  color: #92400E;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  font-size: 0.75em;
+  font-weight: 600;
+}
+
+.status-review {
+  background: #DBEAFE;
+  color: #1E40AF;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  font-size: 0.75em;
+  font-weight: 600;
+}
+
+.status-approved {
+  background: #D1FAE5;
+  color: #065F46;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  font-size: 0.75em;
+  font-weight: 600;
+}

@@ -1,0 +1,288 @@
+# サーバーキャパシティ計画
+
+> **対象フェーズ**: PoC/Beta → Growth  
+> **最終更新**: 2026-04-15  
+> **ステータス**: 承認待ち
+
+---
+
+## 1. 前提条件
+
+### 1.1 ユーザー規模想定
+
+| フェーズ | 登録ユーザー | DAU (日次アクティブ) | 同時接続 | 期間 |
+|---|---|---|---|---|
+| PoC | 50〜100 | 20〜40 | 5〜10 | 1〜2ヶ月 |
+| Closed Beta | 100〜500 | 50〜150 | 15〜40 | 2〜3ヶ月 |
+| Open Beta | 500〜2,000 | 200〜600 | 50〜150 | 3〜6ヶ月 |
+| Growth | 2,000〜10,000 | 800〜3,000 | 200〜800 | 6ヶ月〜 |
+
+### 1.2 トラフィックパターン（PoC/Beta）
+
+Recerdo は「旧友との Social Media」であるため、以下のパターンを想定:
+
+| 時間帯 | 割合 | 特性 |
+|---|---|---|
+| 朝 (7-9時) | 15% | 通知確認・軽い閲覧 |
+| 昼 (12-14時) | 20% | 投稿閲覧・返信 |
+| 夕方〜夜 (18-23時) | 50% | メイン利用時間・投稿・チャット |
+| 深夜〜早朝 | 15% | 低トラフィック |
+
+---
+
+## 2. リクエスト量の見積
+
+### 2.1 ユーザーあたりのAPI呼び出し
+
+1セッション（平均15分）あたりの API 呼び出し:
+
+| 操作 | 呼び出し回数 | サイズ |
+|---|---|---|
+| タイムライン取得 | 3〜5回 | 10KB/回 |
+| プロフィール参照 | 2〜3回 | 2KB/回 |
+| イベント操作 | 1〜2回 | 5KB/回 |
+| 通知取得 | 2〜3回 | 3KB/回 |
+| メッセージ送受信 | 5〜10回 | 1KB/回 |
+| 画像アップロード | 0〜1回 | 2MB/回 |
+| **合計** | **約15〜25回/セッション** | |
+
+### 2.2 RPS（Requests Per Second）計算
+
+| フェーズ | DAU | セッション/日 | API呼出/日 | ピークRPS | 平均RPS |
+|---|---|---|---|---|---|
+| PoC | 30 | 60 | 1,200 | 0.5 | 0.01 |
+| Closed Beta | 100 | 250 | 5,000 | 2 | 0.06 |
+| Open Beta | 400 | 1,200 | 24,000 | 8 | 0.3 |
+| Growth | 2,000 | 6,000 | 120,000 | 40 | 1.4 |
+
+!!! info "PoC/Beta のトラフィック"
+    PoC/Beta では**最大でも 10 RPS 未満**であり、単一 VPS で十分に処理可能。Go + Gin の単体ベンチマークは 10,000〜50,000 RPS を処理できるため、余裕は 1,000 倍以上。
+
+---
+
+## 3. リソースサイジング
+
+### 3.1 PoC/Beta: 単一 VPS 構成
+
+```
+┌──────────────────────────────────────┐
+│          VPS: 4vCPU / 8GB RAM        │
+│                                      │
+│  ┌──────────┐  CPU: 0.1 vCPU        │
+│  │  nginx   │  RAM: 50MB             │
+│  └────┬─────┘                        │
+│       │                              │
+│  ┌────▼─────────────────────┐        │
+│  │  Go Services (Docker)    │        │
+│  │  ├─ auth-svc    0.2vCPU  │        │
+│  │  ├─ core-svc    0.3vCPU  │        │
+│  │  ├─ event-svc   0.2vCPU  │        │
+│  │  ├─ timeline-svc 0.3vCPU │        │
+│  │  ├─ album-svc   0.2vCPU  │        │
+│  │  └─ storage-svc 0.1vCPU  │        │
+│  │  合計: ~1.3vCPU / 1.5GB  │        │
+│  └──────────────────────────┘        │
+│                                      │
+│  ┌────────────┐  CPU: 0.5vCPU       │
+│  │  MySQL 8.0 │  RAM: 2GB            │
+│  └────────────┘                      │
+│                                      │
+│  ┌────────────┐  CPU: 0.2vCPU       │
+│  │  Redis 7.x │  RAM: 256MB          │
+│  └────────────┘                      │
+│                                      │
+│  空き: ~1.9vCPU / 4.2GB             │
+└──────────────────────────────────────┘
+```
+
+### 3.2 各コンポーネントのリソース配分
+
+| コンポーネント | CPU予約 | メモリ予約 | メモリ上限 | 備考 |
+|---|---|---|---|---|
+| nginx | 0.1 vCPU | 50MB | 128MB | TLS終端 + リバースプロキシ |
+| auth-svc | 0.2 vCPU | 128MB | 256MB | JWT検証・Firebase連携 |
+| core-svc | 0.3 vCPU | 256MB | 512MB | ユーザー・組織管理 |
+| event-svc | 0.2 vCPU | 128MB | 256MB | イベントCRUD |
+| timeline-svc | 0.3 vCPU | 256MB | 512MB | フィード生成（最もクエリ負荷高） |
+| album-svc | 0.2 vCPU | 128MB | 256MB | メタデータ管理 |
+| storage-svc | 0.1 vCPU | 64MB | 128MB | S3署名URL生成 |
+| MySQL 8.0 | 0.5 vCPU | 2GB | 3GB | InnoDB Buffer Pool 1.5GB |
+| Redis 7.x | 0.2 vCPU | 256MB | 512MB | セッション + キャッシュ |
+| **合計** | **2.1 vCPU** | **3.3GB** | **5.6GB** | 4vCPU/8GB VPS で余裕あり |
+
+### 3.3 Docker Compose リソース制限設定例
+
+```yaml
+# docker-compose.yml (抜粋)
+services:
+  core-svc:
+    image: recerdo/core-svc:latest
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.3'
+          memory: 256M
+    environment:
+      - GOMAXPROCS=1
+
+  mysql:
+    image: mysql:8.0
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 3G
+        reservations:
+          cpus: '0.5'
+          memory: 2G
+    command: >
+      --innodb-buffer-pool-size=1536M
+      --max-connections=100
+      --thread-cache-size=16
+```
+
+---
+
+## 4. データベースキャパシティ
+
+### 4.1 データ量見積（Closed Beta: 500ユーザー）
+
+| テーブル | レコード数/月 | レコードサイズ | 月間データ量 |
+|---|---|---|---|
+| users | 500 | 1KB | 0.5MB |
+| organizations | 50 | 2KB | 0.1MB |
+| org_users | 1,000 | 0.5KB | 0.5MB |
+| events | 200 | 3KB | 0.6MB |
+| timeline_posts | 3,000 | 2KB | 6MB |
+| post_media | 1,500 | 0.5KB（メタのみ） | 0.75MB |
+| messages | 10,000 | 1KB | 10MB |
+| album_media | 2,000 | 0.5KB（メタのみ） | 1MB |
+| notifications | 5,000 | 0.5KB | 2.5MB |
+| access_logs | 50,000 | 0.3KB | 15MB |
+| **合計** | | | **約 37MB/月** |
+
+!!! success "データベース容量"
+    6ヶ月運用でも **約 220MB** であり、VPS内のMySQL で十分。InnoDB Buffer Pool 1.5GB に対して余裕がある。
+
+### 4.2 クエリパフォーマンス指標
+
+| クエリタイプ | 目標レイテンシ | インデックス戦略 |
+|---|---|---|
+| ユーザー検索 (PK) | < 1ms | PRIMARY KEY |
+| タイムライン取得 (組織別・時系列) | < 10ms | (org_id, created_at DESC) |
+| イベント一覧 (組織別・日付範囲) | < 5ms | (org_id, start_date) |
+| メッセージ取得 (スレッド別) | < 5ms | (thread_id, created_at) |
+| 通知一覧 (ユーザー別・未読) | < 5ms | (user_id, is_read, created_at) |
+
+---
+
+## 5. ストレージキャパシティ
+
+### 5.1 S3 ストレージ見積
+
+| コンテンツタイプ | 月間アップロード数 | 平均サイズ | 月間データ量 |
+|---|---|---|---|
+| プロフィール画像 | 100 | 200KB | 20MB |
+| 投稿画像 | 1,500 | 1MB | 1.5GB |
+| アルバム写真 | 2,000 | 2MB | 4GB |
+| サムネイル（自動生成） | 3,600 | 50KB | 180MB |
+| **合計** | | | **約 5.7GB/月** |
+
+### 5.2 S3 コスト見積
+
+| 項目 | 6ヶ月累計 | コスト |
+|---|---|---|
+| ストレージ (S3 Standard) | 34GB | $0.78 |
+| PUT リクエスト | 42,000 | $0.21 |
+| GET リクエスト | 200,000 | $0.08 |
+| データ転送 (Out) | 50GB | $4.50 |
+| **合計** | | **$5.57/6ヶ月** |
+
+---
+
+## 6. WebSocket キャパシティ
+
+### 6.1 接続数見積
+
+| フェーズ | 同時WebSocket接続 | メモリ使用量 | 備考 |
+|---|---|---|---|
+| PoC | 5〜10 | 5〜10MB | 1接続 ≈ 1MB (Go goroutine + buffer) |
+| Closed Beta | 15〜40 | 15〜40MB | |
+| Open Beta | 50〜150 | 50〜150MB | |
+| Growth | 200〜800 | 200〜800MB | Redis Pub/Sub による分散要検討 |
+
+### 6.2 メッセージスループット
+
+| フェーズ | メッセージ/秒 | 帯域 | 処理方法 |
+|---|---|---|---|
+| PoC/Beta | 1〜5 msg/s | < 50KB/s | 単一Go プロセス |
+| Growth | 10〜50 msg/s | < 500KB/s | Redis Pub/Sub + 複数ワーカー |
+
+!!! info "PoC/Beta での WebSocket"
+    同時接続 40 以下、メッセージ 5msg/s 以下であれば、単一 Go プロセスで十分。Redis Pub/Sub によるPod間通信は Growth フェーズで導入する。
+
+---
+
+## 7. VPS プロバイダー比較
+
+### 7.1 推奨スペック: 4vCPU / 8GB RAM
+
+| プロバイダー | プラン | 月額 | CPU | RAM | SSD | 転送量 | リージョン |
+|---|---|---|---|---|---|---|---|
+| **Hetzner** | CPX31 | **€7.49** (~$8) | 4vCPU (AMD) | 8GB | 160GB | 20TB | EU (独/フィン) |
+| **DigitalOcean** | Premium 4vCPU | $28 | 4vCPU | 8GB | 100GB | 5TB | SGP/TYO |
+| **Vultr** | Cloud Compute | $24 | 4vCPU | 8GB | 200GB | 5TB | TYO |
+| **Linode** | Dedicated 4GB | $36 | 2 Dedicated | 4GB | 80GB | 4TB | TYO |
+| **AWS Lightsail** | 8GB | $40 | 2vCPU | 8GB | 160GB | 5TB | TYO |
+
+### 7.2 推奨
+
+!!! tip "PoC/Beta 推奨"
+    **第1候補: Hetzner CPX31**（€7.49/月）— 最もコスト効率が良い。欠点は東京リージョンがないこと（フィンランドDC経由で日本→EU は約 200ms）。
+    
+    **第2候補: Vultr Cloud Compute**（$24/月）— 東京リージョンあり。日本ユーザーメインなら遅延面で有利。
+    
+    日本ユーザーが主対象なら **Vultr 東京** を推奨。グローバルユーザーも視野に入れるなら **Hetzner** でコスト優先。
+
+---
+
+## 8. 監視・アラート
+
+### 8.1 PoC/Beta で最低限必要な監視
+
+| 監視項目 | ツール | アラート閾値 |
+|---|---|---|
+| CPU使用率 | Prometheus + Grafana (Docker) | > 80% 持続5分 |
+| メモリ使用率 | Prometheus + node_exporter | > 85% |
+| ディスク使用率 | node_exporter | > 80% |
+| HTTP エラー率 | nginx access log | 5xx > 5% |
+| API レスポンスタイム | Go middleware (Prometheus) | p95 > 500ms |
+| MySQL 接続数 | mysqld_exporter | > 80 / 100 |
+| Docker コンテナ状態 | cAdvisor | restart > 3/h |
+
+### 8.2 PoC/Beta では不要な監視
+
+| 項目 | 理由 |
+|---|---|
+| APM (Datadog/New Relic) | 有料。Prometheus + Grafana で十分 |
+| 分散トレーシング (Jaeger) | サービス間通信が HTTP 直接のため不要 |
+| ログ集約 (ELK Stack) | Docker logs + ファイルローテーションで十分 |
+
+---
+
+## 9. スケールアップ判断基準
+
+以下の閾値に達したら、次のフェーズのインフラへ移行する:
+
+| 指標 | 閾値 | アクション |
+|---|---|---|
+| CPU使用率 | 持続的に > 70% | VPS スペックアップ or ECS 移行 |
+| メモリ使用率 | 持続的に > 80% | VPS スペックアップ |
+| 同時WebSocket接続 | > 100 | Redis Pub/Sub 導入 |
+| DBレコード数 | > 100万行 | RDS 移行検討 |
+| 日次API呼出 | > 100K | ロードバランサー導入 |
+| S3データ量 | > 100GB | CloudFront CDN 導入 |
+| DAU | > 1,000 | ECS Fargate + RDS 移行開始 |

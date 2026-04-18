@@ -1,0 +1,167 @@
+site_name: Recerdo Developer Docs
+site_description: Recerdoアプリのマイクロサービス・クリーンアーキテクチャ設計ドキュメント
+site_author: Akira Kusama
+site_url: https://recerdo-developers-docs.netlify.app
+repo_name: Willen-Federation/Recerdo
+repo_url: https://github.com/Willen-Federation/Recerdo
+
+theme:
+  name: material
+  language: ja
+  logo: assets/logo.svg
+  favicon: assets/logo.svg
+
+  palette:
+    # Light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: deep purple
+      toggle:
+        icon: material/brightness-7
+        name: ダークモードに切り替え
+    # Dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: deep purple
+      toggle:
+        icon: material/brightness-4
+        name: ライトモードに切り替え
+
+  features:
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - navigation.footer
+    - navigation.indexes
+    - search.suggest
+    - search.highlight
+    - search.share
+    - content.code.copy
+    - content.code.annotate
+    - content.tabs.link
+    - toc.follow
+
+  icon:
+    repo: fontawesome/brands/github
+    admonition:
+      note: octicons/tag-16
+      tip: octicons/squirrel-16
+      warning: octicons/alert-16
+      danger: octicons/alert-24
+
+extra_css:
+  - stylesheets/extra.css
+
+extra_javascript:
+  - javascripts/mermaid-init.js
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/Willen-Federation/Recerdo
+      name: GitHub
+
+plugins:
+  - search:
+      lang: ja
+  - git-revision-date-localized:
+      enable_creation_date: true
+      type: date
+      locale: ja
+      fallback_to_build_date: true
+  - minify:
+      minify_html: true
+
+markdown_extensions:
+  - abbr
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - toc:
+      permalink: true
+      title: 目次
+  - tables
+  - pymdownx.betterem:
+      smart_enable: all
+  - pymdownx.caret
+  - pymdownx.details
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.keys
+  - pymdownx.mark
+  - pymdownx.smartsymbols
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.tilde
+
+nav:
+  - ホーム: index.md
+
+  - API ドキュメント:
+    - api/index.md
+    - 認証 (Auth): api/auth.md
+    - イベント (Events): api/events.md
+    - アルバム (Album): api/album.md
+    - ストレージ (Storage): api/storage.md
+    - タイムライン (Timeline): api/timeline.md
+    - 監査ログ (Audit): api/audit.md
+
+  - マイクロサービス設計 (DD):
+    - microservice/index.md
+    - Authentication Service: microservice/auth-svc.md
+    - Audit Service: microservice/audit-svc.md
+    - Album Service: microservice/album-svc.md
+    - Events Service: microservice/events-svc.md
+    - Timeline Service: microservice/timeline-svc.md
+    - Storage Service: microservice/storage-svc.md
+    - Notification Service: microservice/notifications-svc.md
+    - Feature Flag System: microservice/feature-flag-system.md
+
+  - クリーンアーキテクチャ設計 (DD):
+    - clean-architecture/index.md
+    - API Gateway: clean-architecture/api-gateway.md
+    - Authentication Service: clean-architecture/auth-svc.md
+    - Audit Service: clean-architecture/audit-svc.md
+    - Album Service: clean-architecture/album-svc.md
+    - Events Service: clean-architecture/events-svc.md
+    - Timeline Service: clean-architecture/timeline-svc.md
+    - Storage Service: clean-architecture/storage-svc.md
+    - Notification Service: clean-architecture/notifications-svc.md
+    - Feature Flag System: clean-architecture/feature-flag-system.md
+
+  - 機能仕様 (Features):
+    - features/index.md
+    - 通知:
+      - プッシュ通知配信: features/notifications/push-notification.md
+    - 権限管理:
+      - Feature Flag 管理: features/permission/feature-flags.md
+    - ソーシャル:
+      - ソーシャル接続: features/events/social-connections.md
+
+  - コアプラットフォーム:
+    - core/index.md
+    - コストパフォーマンス分析: core/cost-performance-analysis.md
+    - PoC/Beta スコープ定義: core/poc-beta-scope.md
+    - サーバーキャパシティ計画: core/server-capacity-planning.md
+    - ファイアウォール & データプロテクション: core/firewall-data-protection.md
+
+  - 変更履歴: changelog.md
