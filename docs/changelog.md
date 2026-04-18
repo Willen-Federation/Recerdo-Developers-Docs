@@ -5,6 +5,32 @@ Recerdo Developer Docs の変更履歴です。
 
 ---
 
+## v0.5.0 — 2026-04-19
+
+### 追加（Notion レビューコメント反映・2026-04-18）
+
+- **[デプロイメント戦略](core/deployment-strategy.md)**: Beta（セルフホストVPS+レンタル）→ 本番（OCIファースト）への段階的移行戦略。AWS Cognito/SES は継続利用し、コンピュート・ストレージは OCI 安価シェイプへ。
+- **[環境抽象化 & Feature Flag](core/environment-abstraction.md)**: ハードコード排除のための3層切替設計（環境変数 / Feature Flag / DI アダプタ）。12-factor 準拠。
+- **[キュー抽象化設計](microservice/queue-abstraction.md)**: SQS 一択を撤回し、BullMQ / Sidekiq / RabbitMQ / NATS / OCI Queue / SQS を Port & Adapter で差し替え可能に。Beta は Redis+BullMQ、本番は OCI Queue を第一推奨。
+- **[Admin Console Service（MS）](microservice/admin-console-svc.md)**: 管理者コンソールを独立マイクロサービスとして新設。RBAC・二段階承認・成り代わり・コマンドキューを含む。
+- **[Admin Console Service（CA）](clean-architecture/admin-console-svc.md)**: クリーンアーキテクチャ準拠のレイヤ別実装ガイド（Entity / UseCase / Adapter / Framework）。Next.js / Rails ハイブリッド UI に対応。
+
+### 変更
+
+- `microservice/index.md`: 「メッセージング: SQS/SNS」の記述を「キュー抽象化レイヤー経由」に刷新、BetaとProdの技術スタックを2列比較で記載。
+- `mkdocs.yml`: 新規ドキュメント5件を nav に追加。
+- `clean-architecture/index.md`: Notifications / Feature Flag / Admin Console の3件を設計書一覧に追加。
+
+### 対応 Notion コメント
+
+- 「システム全体でSQSを採用するようにしているが、Oracleや自前のバッジ処理などで利用する場合などを複数検討した上で、システムを提案するように」→ キュー抽象化設計で対応。
+- 「AWSを基本としつつ、OracleCloudなど安価なクラウドを利用予定」→ デプロイメント戦略で OCI ファーストを明記。
+- 「Beta版はセルフホスティング（VPS+レンタルサーバー）」→ ストレージ層（レンタル）と計算層（VPS）の分離構成を図示。
+- 「Beta→本番でシステムの改修が大変にならないように、FeatureFlagやソフト変更で対応」→ 環境抽象化ドキュメントで3層切替を定義。
+- 「管理者コンソール設計が行われていません。マイクロサービス・クリーンアーキテクチャベースで」→ Admin Console を新規マイクロサービスとして MS/CA 両面で設計。
+
+---
+
 ## v0.4.0 — 2026-04-19
 
 ### 追加

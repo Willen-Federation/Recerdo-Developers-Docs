@@ -68,6 +68,9 @@ flowchart LR
 | [Events Service](events-svc.md) | recuerdo-events-svc | 14 |
 | [Timeline Service](timeline-svc.md) | recuerdo-timeline-svc | 14 |
 | [Storage Service](storage-svc.md) | recuerdo-storage-svc | 14 |
+| [Notification Service](notifications-svc.md) | recuerdo-notifications-svc | 14 |
+| [Feature Flag System](feature-flag-system.md) | recuerdo-feature-flag-svc | 14 |
+| [Admin Console Service](admin-console-svc.md) | recuerdo-admin-console-svc | 10 |
 
 ## 設計書の構成（14セクション）
 
