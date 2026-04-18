@@ -136,7 +136,10 @@ Content-Type: application/octet-stream
 
 ### DELETE `/api/media/{org_id}/{media_id}`
 
-メディアを削除します（アップロード者のみ）。
+メディアを削除します（管理者・アップロード者のみ）。
+#### TODO
+* データは論理削除とした上で、ビジネスポリシーに従って処理する。
+
 
 ---
 
@@ -146,11 +149,11 @@ Content-Type: application/octet-stream
 
 **クエリパラメータ**
 
-| パラメータ | 型 | 説明 |
-|---------|---|------|
-| `limit` | int | 取得件数（デフォルト20、最大100） |
-| `cursor` | string | ページネーションカーソル |
-| `mime_type` | string | フィルター（例: `image/jpeg`） |
+| パラメータ  | 型     | 説明                              |
+| ----------- | ------ | --------------------------------- |
+| `limit`     | int    | 取得件数（デフォルト20、最大100） |
+| `cursor`    | string | ページネーションカーソル          |
+| `mime_type` | string | フィルター（例: `image/jpeg`）    |
 
 ---
 
@@ -158,7 +161,7 @@ Content-Type: application/octet-stream
 
 Storage Serviceは以下のイベントをSQS `recuerdo-media-events` に発行します。
 
-| イベント | トリガー | ペイロード |
-|---------|---------|---------|
+| イベント        | トリガー                   | ペイロード                                                    |
+| --------------- | -------------------------- | ------------------------------------------------------------- |
 | `MediaUploaded` | POST single / merge 成功時 | media_id, org_id, uploader_id, filename, mime_type, file_size |
-| `MediaDeleted` | DELETE 成功時 | media_id, org_id, uploader_id |
+| `MediaDeleted`  | DELETE 成功時              | media_id, org_id, uploader_id                                 |

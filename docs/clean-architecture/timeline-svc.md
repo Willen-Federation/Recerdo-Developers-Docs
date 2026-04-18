@@ -1,12 +1,12 @@
 # クリーンアーキテクチャ設計書
 
-| 項目 | 値 |
-|------|-----|
+| 項目                      | 値                                       |
+| ------------------------- | ---------------------------------------- |
 | **モジュール/サービス名** | Timeline Service (recuerdo-timeline-svc) |
-| **作成者** | Akira |
-| **作成日** | 2026-04-13 |
-| **ステータス** | ドラフト |
-| **バージョン** | 1.0 |
+| **作成者**                | Akira                                    |
+| **作成日**                | 2026-04-13                               |
+| **ステータス**            | ドラフト                                 |
+| **バージョン**            | 1.0                                      |
 
 ---
 
@@ -24,7 +24,7 @@ Timeline Service はRecuerdo プラットフォームにおいて、すべての
 ### 1.3 アーキテクチャ原則
 - **イベント駆動型**：SQS メッセージをリスニング、TimelineItem を非同期作成
 - **アクセス制御**：可視性ルール（PRIVATE/FRIENDS/PUBLIC）をドメイン層で保護
-- **スケーラビリティ**：月次パーティショニング（PostgreSQL）+ Redis ソートセット FIFOキャッシュ
+- **スケーラビリティ**：月次パーティショニング（MySQL）+ Redis ソートセット FIFOキャッシュ
 - **イミュータビリティ**：TimelineItem は削除されない、表示/非表示フラグで制御
 
 ---
@@ -36,7 +36,7 @@ Timeline Service はRecuerdo プラットフォームにおいて、すべての
 ```
 ┌─────────────────────────────────────────────────────┐
 │  フレームワーク＆ドライバ層                          │
-│  (Web: Gin, DB: PostgreSQL, Queue: SQS consumer)  │
+│  (Web: Gin, DB: MySQL, Queue: SQS consumer)  │
 └────────────┬──────────────────────────────────────┘
              │
 ┌────────────▼──────────────────────────────────────┐
@@ -69,19 +69,19 @@ Timeline Service はRecuerdo プラットフォームにおいて、すべての
 
 ### 3.1 ドメインモデル
 
-| エンティティ | 説明 |
-|-------------|------|
+| エンティティ     | 説明                                                                   |
+| ---------------- | ---------------------------------------------------------------------- |
 | **TimelineItem** | 時系列で記録される単一の活動：イベント作成、メディア追加、友人参加など |
-| **FeedCursor** | ページネーション状態：last_seen_id + occurred_at タプル |
+| **FeedCursor**   | ページネーション状態：last_seen_id + occurred_at タプル                |
 
 ### 3.2 値オブジェクト
 
-| 値オブジェクト | 許可される値 | 不変性 |
-|---------------|-----------|-------|
-| **TimelineItemType** | EVENT_CREATED, ALBUM_CREATED, MEDIA_ADDED, FRIEND_JOINED, EVENT_INVITATION_ACCEPTED, HIGHLIGHT_VIDEO_READY, MEMORY_SHARED | イミュータブル（列挙値） |
-| **Visibility** | PUBLIC, FRIENDS, PRIVATE | イミュータブル、ドメインルール適用 |
-| **FeedCursor** | (last_seen_id: string, occurred_at: timestamp) | イミュータブル |
-| **TimelinePayload** | item_type に応じて異なる JSON 構造 | イミュータブル（JSONB） |
+| 値オブジェクト       | 許可される値                                                                                                              | 不変性                             |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
+| **TimelineItemType** | EVENT_CREATED, ALBUM_CREATED, MEDIA_ADDED, FRIEND_JOINED, EVENT_INVITATION_ACCEPTED, HIGHLIGHT_VIDEO_READY, MEMORY_SHARED | イミュータブル（列挙値）           |
+| **Visibility**       | PUBLIC, FRIENDS, PRIVATE                                                                                                  | イミュータブル、ドメインルール適用 |
+| **FeedCursor**       | (last_seen_id: string, occurred_at: timestamp)                                                                            | イミュータブル                     |
+| **TimelinePayload**  | item_type に応じて異なる JSON 構造                                                                                        | イミュータブル（JSONB）            |
 
 ### 3.3 ドメインルール / 不変条件
 
@@ -94,10 +94,10 @@ Timeline Service はRecuerdo プラットフォームにおいて、すべての
 
 ### 3.4 ドメインイベント
 
-| イベント | トリガー | ペイロード | 購読者 |
-|---------|---------|-----------|-------|
+| イベント                | トリガー                | ペイロード                                      | 購読者                                      |
+| ----------------------- | ----------------------- | ----------------------------------------------- | ------------------------------------------- |
 | **TimelineItemCreated** | CreateTimelineItem 成功 | item_id, user_id, org_id, item_type, visibility | Notification Svc (ユーザーフィード更新通知) |
-| **TimelineItemHidden** | HideTimelineItem 成功 | item_id, hidden_by | Notification Svc (UI 更新通知) |
+| **TimelineItemHidden**  | HideTimelineItem 成功   | item_id, hidden_by                              | Notification Svc (UI 更新通知)              |
 
 ### 3.5 エンティティ定義 (Go pseudocode)
 
@@ -326,13 +326,13 @@ func AlbumCreatedPayload(albumID, albumName, eventID string) map[string]interfac
 
 ### 4.1 ユースケース一覧
 
-| ユースケース | 説明 | アクター | 主成功シナリオ |
-|------------|------|---------|--------------|
-| **CreateTimelineItem** | SQS メッセージから TimelineItem 作成（非同期） | SQS Consumer | メッセージパース、ドメイン構築、DB 保存、キャッシュ更新 |
-| **GetUserTimeline** | ユーザーの個人フィード取得 | Org Member | カーソルベースページング、可視性フィルタ、キャッシュ活用 |
-| **GetOrgTimeline** | 組織フィード取得 | Org Member | PUBLIC/FRIENDS のみ、個人 PRIVATE 除外、ページング |
-| **HideTimelineItem** | アイテムを非表示（soft delete） | Item Owner or Org Admin | Hidden=true 設定、キャッシュ無効化 |
-| **GetUserFeed** | ユーザーのカスタマイズされたフィード（友人活動含む） | Org Member | グラフベース可視性チェック、マージソート（時系列） |
+| ユースケース           | 説明                                                 | アクター                | 主成功シナリオ                                           |
+| ---------------------- | ---------------------------------------------------- | ----------------------- | -------------------------------------------------------- |
+| **CreateTimelineItem** | SQS メッセージから TimelineItem 作成（非同期）       | SQS Consumer            | メッセージパース、ドメイン構築、DB 保存、キャッシュ更新  |
+| **GetUserTimeline**    | ユーザーの個人フィード取得                           | Org Member              | カーソルベースページング、可視性フィルタ、キャッシュ活用 |
+| **GetOrgTimeline**     | 組織フィード取得                                     | Org Member              | PUBLIC/FRIENDS のみ、個人 PRIVATE 除外、ページング       |
+| **HideTimelineItem**   | アイテムを非表示（soft delete）                      | Item Owner or Org Admin | Hidden=true 設定、キャッシュ無効化                       |
+| **GetUserFeed**        | ユーザーのカスタマイズされたフィード（友人活動含む） | Org Member              | グラフベース可視性チェック、マージソート（時系列）       |
 
 ### 4.2 ユースケース詳細 (CreateTimelineItem - main use case)
 
@@ -514,13 +514,13 @@ type SQSMessageConsumer interface {
 
 ### 5.1 コントローラ / ハンドラ
 
-| ハンドラ | HTTP Method | Path | 入力 | 出力 | 責務 |
-|---------|-----------|------|------|------|------|
-| **GetUserTimelineHandler** | GET | /api/timelines/users/{id} | Query params | GetUserTimelineResponse | ページング、可視性フィルタ、キャッシュ確認 |
-| **GetOrgTimelineHandler** | GET | /api/timelines/orgs/{id} | Query params | GetUserTimelineResponse | 組織フィルタ、PRIVATE 除外 |
-| **HideTimelineItemHandler** | DELETE | /api/timeline-items/{id} | - | StatusResponse | 権限チェック、Hidden 設定 |
-| **GetUserFeedHandler** | GET | /api/feeds/users/{id} | Query params | GetUserFeedResponse | 友人グラフ結合、統合ソート |
-| **SQSMessageConsumerHandler** | (background) | (async) | SQS message | CreateTimelineItemResponse | メッセージパース、ドメイン構築 |
+| ハンドラ                      | HTTP Method  | Path                      | 入力         | 出力                       | 責務                                       |
+| ----------------------------- | ------------ | ------------------------- | ------------ | -------------------------- | ------------------------------------------ |
+| **GetUserTimelineHandler**    | GET          | /api/timelines/users/{id} | Query params | GetUserTimelineResponse    | ページング、可視性フィルタ、キャッシュ確認 |
+| **GetOrgTimelineHandler**     | GET          | /api/timelines/orgs/{id}  | Query params | GetUserTimelineResponse    | 組織フィルタ、PRIVATE 除外                 |
+| **HideTimelineItemHandler**   | DELETE       | /api/timeline-items/{id}  | -            | StatusResponse             | 権限チェック、Hidden 設定                  |
+| **GetUserFeedHandler**        | GET          | /api/feeds/users/{id}     | Query params | GetUserFeedResponse        | 友人グラフ結合、統合ソート                 |
+| **SQSMessageConsumerHandler** | (background) | (async)                   | SQS message  | CreateTimelineItemResponse | メッセージパース、ドメイン構築             |
 
 ### 5.2 プレゼンター / レスポンスマッパー
 
@@ -571,17 +571,17 @@ func (p *TimelinePresenter) PresentUserTimelineResponse(
 
 ### 5.3 リポジトリ実装（アダプタ）
 
-| リポジトリ実装 | 対象 | 技術 | キャッシング戦略 |
-|-----------|------|------|----------------|
-| **PostgresTimelineItemRepository** | TimelineItem | `database/sql` + sqlc + 月次パーティショニング | リスト結果→Redis sorted set (TTL 10min) |
-| **RedisTimelineItemCache** | Timeline Item キャッシュ | Redis Sorted Set | スコア=occurred_at.Unix(), メンバー=item_id |
+| リポジトリ実装                  | 対象                     | 技術                                           | キャッシング戦略                            |
+| ------------------------------- | ------------------------ | ---------------------------------------------- | ------------------------------------------- |
+| **MySQLTimelineItemRepository** | TimelineItem             | `database/sql` + sqlc + 月次パーティショニング | リスト結果→Redis sorted set (TTL 10min)     |
+| **RedisTimelineItemCache**      | Timeline Item キャッシュ | Redis Sorted Set                               | スコア=occurred_at.Unix(), メンバー=item_id |
 
 ### 5.4 外部サービスアダプタ
 
-| アダプタ | 外部サービス | 実装 | エラーハンドリング |
-|---------|----------|------|----------------|
-| **PermissionServiceClient** | Permission Service | gRPC | タイムアウト 2sec、default false |
-| **SQSMessageConsumerAdapter** | AWS SQS | `github.com/aws/aws-sdk-go-v2/sqs` | リトライ 3回、DLQ へ送信 |
+| アダプタ                      | 外部サービス       | 実装                               | エラーハンドリング               |
+| ----------------------------- | ------------------ | ---------------------------------- | -------------------------------- |
+| **PermissionServiceClient**   | Permission Service | gRPC                               | タイムアウト 2sec、default false |
+| **SQSMessageConsumerAdapter** | SQS                | `github.com/aws/aws-sdk-go-v2/sqs` | リトライ 3回、DLQ へ送信         |
 
 ### 5.5 マッパー
 
@@ -654,7 +654,7 @@ func SQSMessageToRequest(message []byte) (*CreateTimelineItemRequest, error) {
 - **ベースパス**: `/api`
 - **ミドルウェア**: CORS, Auth Token 検証, Request ID, ロギング, Panic Recovery
 
-### 6.2 データベース (PostgreSQL 15 with monthly partitioning)
+### 6.2 データベース (MySQL 15 with monthly partitioning)
 
 ```sql
 -- timeline_items テーブル（base）
@@ -725,15 +725,14 @@ CREATE INDEX idx_timeline_item_read_status_user_id ON timeline_item_read_status(
 
 ### 6.4 外部ライブラリ＆SDK
 
-| ライブラリ | 用途 | バージョン |
-|-----------|------|-----------|
-| `github.com/gin-gonic/gin` | Web フレームワーク | v1.10 |
-| `github.com/lib/pq` | PostgreSQL ドライバ | v1.10 |
-| `github.com/redis/go-redis/v9` | Redis ソートセット | v9.3 |
-| `github.com/aws/aws-sdk-go-v2/sqs` | SQS Consumer | v1.26 |
-| `github.com/oklog/ulid/v2` | ULID 生成 | v2.1 |
-| `google.golang.org/grpc` | Permission Service | v1.57 |
-| `encoding/json` | JSON パース | stdlib |
+| ライブラリ                     | 用途               | バージョン |
+| ------------------------------ | ------------------ | ---------- |
+| `github.com/gin-gonic/gin`     | Web フレームワーク | v1.10      |
+| `github.com/lib/pq`            | MySQL ドライバ     | v1.10      |
+| `github.com/redis/go-redis/v9` | Redis ソートセット | v9.3       |
+| `github.com/oklog/ulid/v2`     | ULID 生成          | v2.1       |
+| `google.golang.org/grpc`       | Permission Service | v1.57      |
+| `encoding/json`                | JSON パース        | stdlib     |
 
 ### 6.5 依存性注入 (uber-go/fx code example)
 
@@ -752,7 +751,7 @@ func Module() fx.Option {
     return fx.Module("timeline-service",
         // インフラプロバイダ
         fx.Provide(
-            providePostgresDB,
+            provideMySQLDB,
             provideRedisClient,
             provideSQSClient,
             provideGinEngine,
@@ -760,7 +759,7 @@ func Module() fx.Option {
         // リポジトリプロバイダ
         fx.Provide(
             func(db *sql.DB) adapter.TimelineItemRepository {
-                return adapter.NewPostgresTimelineItemRepository(db)
+                return adapter.NewMySQLTimelineItemRepository(db)
             },
             func(redis *redis.Client) adapter.FeedCacheRepository {
                 return adapter.NewRedisTimelineItemCache(redis)
@@ -798,12 +797,12 @@ func Module() fx.Option {
     )
 }
 
-func providePostgresDB(cfg *config.DatabaseConfig) (*sql.DB, error) {
+func provideMySQLDB(cfg *config.DatabaseConfig) (*sql.DB, error) {
     connStr := fmt.Sprintf(
-        "postgres://%s:%s@%s:%d/%s?sslmode=require",
+        "MySQL://%s:%s@%s:%d/%s?sslmode=require",
         cfg.User, cfg.Password, cfg.Host, cfg.Port, cfg.Database,
     )
-    return sql.Open("postgres", connStr)
+    return sql.Open("MySQL", connStr)
 }
 
 func provideRedisClient(cfg *config.RedisConfig) *redis.Client {
@@ -869,7 +868,7 @@ recuerdo-timeline-svc/
 │   │   │   ├── hide_timeline_item_handler.go
 │   │   │   └── get_user_feed_handler.go
 │   │   ├── persistence/
-│   │   │   ├── postgres_timeline_item_repo.go
+│   │   │   ├── MySQL_timeline_item_repo.go
 │   │   │   └── redis_timeline_item_cache.go
 │   │   ├── external/
 │   │   │   ├── sqs_message_consumer.go
@@ -907,12 +906,12 @@ recuerdo-timeline-svc/
 
 ### 8.1 許可される依存関係
 
-| レイヤー | 依存可能な対象 | 例 |
-|---------|----------|-----|
-| **フレームワーク＆ドライバ層** | すべて下位 | SQS Consumer → UseCase → Domain |
-| **インターフェースアダプタ層** | ユースケース以下 | Handler → UseCase → Domain |
-| **ユースケース層** | ドメイン層のみ | GetUserTimeline → domain.TimelineItem |
-| **ドメイン層** | なし | 自己完結 |
+| レイヤー                       | 依存可能な対象   | 例                                    |
+| ------------------------------ | ---------------- | ------------------------------------- |
+| **フレームワーク＆ドライバ層** | すべて下位       | SQS Consumer → UseCase → Domain       |
+| **インターフェースアダプタ層** | ユースケース以下 | Handler → UseCase → Domain            |
+| **ユースケース層**             | ドメイン層のみ   | GetUserTimeline → domain.TimelineItem |
+| **ドメイン層**                 | なし             | 自己完結                              |
 
 ### 8.2 境界の横断
 - **ポート経由**：ユースケース → リポジトリポート
@@ -930,11 +929,11 @@ recuerdo-timeline-svc/
 
 ### 9.1 テストピラミッド
 
-| テストタイプ | 割合 | 対象 | ツール |
-|------------|------|------|-------|
-| **ユニットテスト** | 70% | ドメイン、ユースケース（Mock） | `testing` + `testify` |
-| **統合テスト** | 20% | Handler + UseCase + Repo | `testcontainers-go` |
-| **エンドツーエンド** | 10% | 全フロー（SQS 含む） | docker-compose, API テスト |
+| テストタイプ         | 割合 | 対象                           | ツール                     |
+| -------------------- | ---- | ------------------------------ | -------------------------- |
+| **ユニットテスト**   | 70%  | ドメイン、ユースケース（Mock） | `testing` + `testify`      |
+| **統合テスト**       | 20%  | Handler + UseCase + Repo       | `testcontainers-go`        |
+| **エンドツーエンド** | 10%  | 全フロー（SQS 含む）           | docker-compose, API テスト |
 
 ### 9.2 テスト例 (Go test code)
 
@@ -1049,11 +1048,11 @@ import (
 func TestCreateTimelineItemUseCase_Integration(t *testing.T) {
     ctx := context.Background()
     
-    // testcontainers で PostgreSQL セットアップ
+    // testcontainers で MySQL セットアップ
     db, cleanup := setupTestDB(t)
     defer cleanup()
     
-    itemRepo := adapter.NewPostgresTimelineItemRepository(db)
+    itemRepo := adapter.NewMySQLTimelineItemRepository(db)
     cacheRepo := &mockFeedCacheRepository{}
     permSvc := &mockPermissionService{connected: true}
     
@@ -1127,12 +1126,12 @@ var (
 
 ### 10.3 エラー変換 (HTTP mapping table)
 
-| エラー | HTTP ステータス | レスポンス |
-|-------|--------------|----------|
-| `ErrTimelineItemNotFound` | 404 Not Found | `{"error": "not_found"}` |
-| `ErrUnauthorizedToHide` | 403 Forbidden | `{"error": "unauthorized"}` |
-| `ErrCursorInvalid` | 400 Bad Request | `{"error": "invalid_cursor"}` |
-| `ErrPersistenceFailed` | 500 Internal Server Error | `{"error": "internal_error"}` |
+| エラー                    | HTTP ステータス           | レスポンス                    |
+| ------------------------- | ------------------------- | ----------------------------- |
+| `ErrTimelineItemNotFound` | 404 Not Found             | `{"error": "not_found"}`      |
+| `ErrUnauthorizedToHide`   | 403 Forbidden             | `{"error": "unauthorized"}`   |
+| `ErrCursorInvalid`        | 400 Bad Request           | `{"error": "invalid_cursor"}` |
+| `ErrPersistenceFailed`    | 500 Internal Server Error | `{"error": "internal_error"}` |
 
 ---
 
@@ -1177,27 +1176,27 @@ var (
 
 ### 12.3 マイグレーション手順
 
-| フェーズ | 実施内容 | 期間 | 依存関係 |
-|---------|--------|------|--------|
-| **1. インフラ準備** | PostgreSQL パーティション作成、Redis setup | 1週間 | なし |
-| **2. コア実装** | ドメイン層、ユースケース、リポジトリ | 2週間 | フェーズ1 |
-| **3. HTTP + キャッシュ** | Handler、Presenter、Redis キャッシュ | 1週間 | フェーズ2 |
-| **4. SQS Consumer** | SQS メッセージハンドラ、ワーカー実装 | 1週間 | フェーズ3 |
-| **5. テスト** | 統合・E2E テスト | 1週間 | フェーズ4 |
-| **6. デプロイ・データマイグレーション** | 本番へのロールアウト、既存データ移行 | 1週間 | フェーズ5 |
+| フェーズ                                | 実施内容                              | 期間  | 依存関係  |
+| --------------------------------------- | ------------------------------------- | ----- | --------- |
+| **1. インフラ準備**                     | MySQL パーティション作成、Redis setup | 1週間 | なし      |
+| **2. コア実装**                         | ドメイン層、ユースケース、リポジトリ  | 2週間 | フェーズ1 |
+| **3. HTTP + キャッシュ**                | Handler、Presenter、Redis キャッシュ  | 1週間 | フェーズ2 |
+| **4. SQS Consumer**                     | SQS メッセージハンドラ、ワーカー実装  | 1週間 | フェーズ3 |
+| **5. テスト**                           | 統合・E2E テスト                      | 1週間 | フェーズ4 |
+| **6. デプロイ・データマイグレーション** | 本番へのロールアウト、既存データ移行  | 1週間 | フェーズ5 |
 
 ---
 
 ## 13. 未決事項と決定事項
 
-| 項目 | 現在の決定 | 状態 | 備考 |
-|------|----------|------|------|
-| **パーティショニング戦略** | 月次（RANGE by year, month） | 決定済み | 年4回の archive + テーブル削除 |
-| **Soft Delete vs Hard Delete** | Soft Delete（hidden フラグ） | 決定済み | 監査証跡保持 |
-| **カーソルエンコーディング** | Base64（lastSeenID:occurredAt） | 決定済み | API 外部公開用 |
-| **友人フィード更新頻度** | リアルタイム（SQS 駆動） | 決定済み | eventual consistency 許容 |
-| **キャッシュの一貫性** | Eventually Consistent | 決定済み | 10分 TTL で十分 |
-| **グラフDB 導入** | 未検討 | 保留中 | 友人グラフが複雑化したら検討 |
+| 項目                           | 現在の決定                      | 状態     | 備考                           |
+| ------------------------------ | ------------------------------- | -------- | ------------------------------ |
+| **パーティショニング戦略**     | 月次（RANGE by year, month）    | 決定済み | 年4回の archive + テーブル削除 |
+| **Soft Delete vs Hard Delete** | Soft Delete（hidden フラグ）    | 決定済み | 監査証跡保持                   |
+| **カーソルエンコーディング**   | Base64（lastSeenID:occurredAt） | 決定済み | API 外部公開用                 |
+| **友人フィード更新頻度**       | リアルタイム（SQS 駆動）        | 決定済み | eventual consistency 許容      |
+| **キャッシュの一貫性**         | Eventually Consistent           | 決定済み | 10分 TTL で十分                |
+| **グラフDB 導入**              | 未検討                          | 保留中   | 友人グラフが複雑化したら検討   |
 
 ---
 
@@ -1205,7 +1204,7 @@ var (
 
 - **Clean Architecture**: Robert C. Martin, "Clean Architecture"
 - **Event-Driven Architecture**: Sam Newman, "Building Event-Driven Microservices"
-- **PostgreSQL Partitioning**: `https://www.postgresql.org/docs/15/ddl-partitioning.html`
+- **MySQL Partitioning**: `https://www.MySQL.org/docs/15/ddl-partitioning.html`
 - **Redis Sorted Set**: `https://redis.io/docs/data-types/sorted-sets/`
 - **Cursor-Based Pagination**: `https://medium.com/swlh/pagination-in-graphql`
 - **Gin Framework**: `https://github.com/gin-gonic/gin`

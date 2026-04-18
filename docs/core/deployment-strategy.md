@@ -11,11 +11,11 @@
 
 Recerdo は **Viejoアプリ**（旧友・仲良かったグループとのSocialMedia）として、大手SNSと異なり "限定クローズド" なトラフィック特性を持つ。この特性を最大限活かすため、以下の三段階デプロイ戦略を採る。
 
-| フェーズ | 基盤 | 目的 | 月額コスト目標 |
-|---|---|---|---|
-| **Closed Beta** | セルフホスト（VPS + レンタルサーバー） | 低コスト運用、1,000MAU以内 | $20〜$50 |
-| **Open Beta → 初期本番** | **OCI ファースト**（Oracle Cloud Infrastructure 東京/大阪）+ AWS Cognito 併用 | 安価クラウドで10,000MAUまでスケール | $50〜$200 |
-| **GA（成熟）** | OCI を主、AWS を Cognito/SES 等のマネージドサービスに限定 | 50,000MAU超に対応 | $200〜 |
+| フェーズ                 | 基盤                                                                          | 目的                                | 月額コスト目標 |
+| ------------------------ | ----------------------------------------------------------------------------- | ----------------------------------- | -------------- |
+| **Closed Beta**          | セルフホスト（VPS + レンタルサーバー）                                        | 低コスト運用、1,000MAU以内          | $20〜$50       |
+| **Open Beta → 初期本番** | **OCI ファースト**（Oracle Cloud Infrastructure 東京/大阪）+ AWS Cognito 併用 | 安価クラウドで10,000MAUまでスケール | $50〜$200      |
+| **GA（成熟）**           | OCI を主、AWS を Cognito/SES 等のマネージドサービスに限定                     | 50,000MAU超に対応                   | $200〜         |
 
 **設計原則**: コードベースは **単一** を維持し、クラウド事業者・ミドルウェア実装は **ハードコードせず**、**Feature Flag + 環境変数（12-factor config）+ アダプタパターン** で差し替え可能にする。これにより、Beta → 本番切替時に「リポジトリを書き換える」のではなく「環境変数とフラグを切り替える」だけで移行できる。
 
@@ -23,13 +23,13 @@ Recerdo は **Viejoアプリ**（旧友・仲良かったグループとのSocia
 
 ## 2. Notion レビューコメント対応マトリクス
 
-| コメント内容 | 本設計書での対応 | 関連セクション |
-|---|---|---|
-| SQS採用を全体で決めているが、代替（Oracle・自前バッジ処理）を複数検討せよ | OSSキュー比較＋アダプタ抽象化で差し替え可能に | §5, [キュー抽象化設計](../microservice/queue-abstraction.md) |
-| AWSを基本としつつ Oracle Cloud など安価クラウドを利用 | OCI ファースト戦略、AWS は Cognito/SES のみ限定利用 | §3 |
-| Beta版はセルフホスト（VPS + レンタルサーバー） | VPS＝マイクロサービス／レンタルサーバー＝ストレージ層の分離構成 | §4 |
-| Beta→本番でシステム改修が大変にならないように、Feature Flag・ソフト変更で対応 | 環境抽象化レイヤ＋Feature Flag駆動切替 | §6, [環境抽象化](environment-abstraction.md) |
-| 管理者コンソール設計がない。マイクロサービス・クリーンアーキベースで検討 | 独立マイクロサービスとして追加 | [Admin Console (MS)](../microservice/admin-console-svc.md)・[Admin Console (CA)](../clean-architecture/admin-console-svc.md) |
+| コメント内容                                                                  | 本設計書での対応                                                | 関連セクション                                                                                                               |
+| ----------------------------------------------------------------------------- | --------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| SQS採用を全体で決めているが、代替（Oracle・自前バッジ処理）を複数検討せよ     | OSSキュー比較＋アダプタ抽象化で差し替え可能に                   | §5, [キュー抽象化設計](../microservice/queue-abstraction.md)                                                                 |
+| AWSを基本としつつ Oracle Cloud など安価クラウドを利用                         | OCI ファースト戦略、AWS は Cognito/SES のみ限定利用             | §3                                                                                                                           |
+| Beta版はセルフホスト（VPS + レンタルサーバー）                                | VPS＝マイクロサービス／レンタルサーバー＝ストレージ層の分離構成 | §4                                                                                                                           |
+| Beta→本番でシステム改修が大変にならないように、Feature Flag・ソフト変更で対応 | 環境抽象化レイヤ＋Feature Flag駆動切替                          | §6, [環境抽象化](environment-abstraction.md)                                                                                 |
+| 管理者コンソール設計がない。マイクロサービス・クリーンアーキベースで検討      | 独立マイクロサービスとして追加                                  | [Admin Console (MS)](../microservice/admin-console-svc.md)・[Admin Console (CA)](../clean-architecture/admin-console-svc.md) |
 
 ---
 
@@ -49,23 +49,25 @@ Recerdo は **Viejoアプリ**（旧友・仲良かったグループとのSocia
 
 OCI ファーストとしつつも、以下の領域は **AWS / Firebase を維持** する：
 
-| サービス | 理由 |
-|---|---|
-| **AWS Cognito**（認証） | 50,000 MAU 無料枠、Hosted UI 対応、OIDC/SAML 完備、ユーザープールの移行コストが高い |
-| **AWS SES**（メール配信） | 送信者評判・IP warm-up 済み、EC2外でも $0.10/1,000通で安価 |
-| **Firebase FCM**（プッシュ通知） | 完全無料・無制限、Android/iOS両対応 |
-| **Cloudflare R2 / CDN**（将来のエッジ配信） | R2 はエグレス無料、CDN に OCI 不足分を補填 |
+#### TODO
+- [ ] メールについてはセルフホスティングされたメールサーバーを利用する
+
+| サービス                                    | 理由                                                                                |
+| ------------------------------------------- | ----------------------------------------------------------------------------------- |
+| **AWS Cognito**（認証）                     | 50,000 MAU 無料枠、Hosted UI 対応、OIDC/SAML 完備、ユーザープールの移行コストが高い |
+| **Firebase FCM**（プッシュ通知）            | 完全無料・無制限、Android/iOS両対応                                                 |
+| **Cloudflare R2 / CDN**（将来のエッジ配信） | R2 はエグレス無料、CDN に OCI 不足分を補填                                          |
 
 !!! tip "Cognito 選定理由"
     Notion 設計書の更新（2026-04-15: "Cognito Hosted UI委任型認証"）で既に合意済み。認証周りはセルフホスト（Keycloak 等）ではなく、Cognito に委譲して開発工数を削減する。
 
 ### 3.3 除外候補と根拠
 
-| クラウド | 除外理由 |
-|---|---|
-| GCP | コスト面で OCI に劣る、日本法人サポート体制が限定的 |
-| Azure | エンタープライズ向けで個人開発に割高、Cognito 互換性弱い |
-| Alibaba Cloud | データ主権・法規制リスク |
+| クラウド                     | 除外理由                                                               |
+| ---------------------------- | ---------------------------------------------------------------------- |
+| GCP                          | コスト面で OCI に劣る、日本法人サポート体制が限定的                    |
+| Azure                        | エンタープライズ向けで個人開発に割高、Cognito 互換性弱い               |
+| Alibaba Cloud                | データ主権・法規制リスク                                               |
 | 国内IaaS（さくらクラウド等） | OCI と同等価格帯だが、グローバル拡張パスが弱い（将来の海外展開を考慮） |
 
 ---
@@ -100,12 +102,12 @@ flowchart TB
     Admin["Admin Console Svc"]
     FF["Feature Flag Svc (Flipt)"]
     Queue["Redis + BullMQ (キュー)"]
-    DB["PostgreSQL (プライマリ)"]
+    DB["MySQL (プライマリ)"]
   end
 
   subgraph Rental["レンタルサーバー層 = ストレージ (さくらレンタルサーバー プレミアム / ConoHa WING 等)"]
     MinIO["MinIO (S3互換) — 写真/動画"]
-    Backup["PostgreSQL バックアップ (日次)"]
+    Backup["MySQL バックアップ (日次)"]
     StaticAssets["静的アセット"]
   end
 
@@ -135,37 +137,35 @@ flowchart TB
 
 ### 4.2 VPS（計算層）
 
-**候補**:
+**利用対象**:
 - Oracle Always Free A1（第一候補、Closed Beta は完全無料）
-- ConoHa VPS / さくらのVPS（$6〜/月、日本国内バックアップ）
-- Hetzner Cloud（ドイツ、$4〜/月、日本から遅いため本番非推奨）
+- XServer VPS（6Core/10GB）
 
 **内容**:
 - 全マイクロサービスを Docker Compose または k3s（Kubernetes 軽量ディストリビューション）で稼働
 - Traefik をリバースプロキシ・API Gateway として使用（Let's Encrypt 自動化）
-- PostgreSQL は VPS 内で稼働、日次ダンプをレンタルサーバーへ転送
+- MySQL は VPS 内で稼働、日次ダンプをレンタルサーバーへ転送
 
 ### 4.3 レンタルサーバー（ストレージ層）
 
 **候補**:
-- さくらレンタルサーバー プレミアム（400GB、$14/月）
-- ConoHa WING ベーシック（300GB、$9/月）
-- ロリポップ ハイスピード（400GB、$5/月）
+- CoreServer (V2CORE-X / 6GB)
+
 
 **内容**:
-- **MinIO（S3互換オブジェクトストレージ）** を設置し、Album Service・Storage Service のバックエンドとする
-- PostgreSQL 日次バックアップ保管
+- **Garage（S3互換オブジェクトストレージ）** を設置し、Album Service・Storage Service のバックエンドとする
+- MySQL 日次バックアップ保管
 - 静的アセット（アプリ内画像・LP）のホスティング
 
-!!! note "レンタルサーバー上での MinIO の制約"
-    レンタルサーバーは共用環境のため、SSH経由でのバイナリ実行が制限されている場合がある。MinIO が動作しない場合は **「レンタルサーバー = 単純なファイル保管（rsync / FTPS 転送）」に限定** し、S3 互換 API は VPS 内で MinIO を立てる構成にフォールバックする（§4.4 参照）。
+!!! note "レンタルサーバー上での Garage の制約"
+    レンタルサーバーは共用環境のため、SSH経由でのバイナリ実行が制限されている場合がある。Garage が動作しない場合は **「レンタルサーバー = 単純なファイル保管（rsync / FTPS 転送）」に限定** し、S3 互換 API は VPS 内で Garage を立てる構成にフォールバックする（§4.4 参照）。
 
 ### 4.4 フォールバック構成（レンタルサーバーで MinIO 起動不可の場合）
 
-| 層 | 代替案 |
-|---|---|
-| オブジェクトストレージ | VPS 内 MinIO（ブロックストレージ 200GB 無料枠で賄う）+ レンタルサーバーは **FTPS 経由の低頻度バックアップ** に限定 |
-| バックアップ先 | Cloudflare R2（10GB 無料、エグレス完全無料）に切替可能 |
+| 層                     | 代替案                                                                                                              |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| オブジェクトストレージ | VPS 内 Garage（ブロックストレージ 200GB 無料枠で賄う）+ レンタルサーバーは **FTPS 経由の低頻度バックアップ** に限定 |
+| バックアップ先         | Cloudflare R2（10GB 無料、エグレス完全無料）に切替可能                                                              |
 
 ---
 
@@ -173,29 +173,29 @@ flowchart TB
 
 ### 5.1 コンポーネントごとの Beta → 本番マッピング
 
-| コンポーネント | Beta（セルフホスト） | 本番（OCI ファースト） | 切替手段 |
-|---|---|---|---|
-| API Gateway | Traefik on VPS | **OCI Load Balancer + API Gateway**（または Traefik 継続） | 環境変数 `API_GATEWAY_URL` |
-| 認証 | Cognito（Beta から継続） | Cognito（継続） | 変更なし |
-| データベース | PostgreSQL on VPS | **OCI Autonomous Database for PostgreSQL** | 接続文字列 `DATABASE_URL` |
-| キャッシュ | Redis on VPS | **OCI Cache with Redis**（または VPS Redis 継続） | `REDIS_URL` |
-| メッセージキュー | **Redis + BullMQ / Sidekiq**（セルフホスト） | **OCI Queue Service**（AMQP）または **AWS SQS** | Feature Flag `queue.provider` + アダプタ |
-| オブジェクトストレージ | MinIO on レンタルサーバー（or VPS） | **OCI Object Storage**（S3互換） | `S3_ENDPOINT_URL` |
-| メール | AWS SES | AWS SES（継続） | 変更なし |
-| プッシュ通知 | Firebase FCM | Firebase FCM（継続） | 変更なし |
-| Feature Flag基盤 | Flipt（セルフホスト） | Flipt（継続、OCI VPS 上） | 変更なし |
-| 監査ログ保管 | PostgreSQL + S3 冷却 | OCI Object Storage + **Archive tier** | `AUDIT_ARCHIVE_BUCKET` |
-| ログ集約 | Grafana Loki（セルフホスト） | OCI Logging（または Loki 継続） | Feature Flag `observability.stack` |
-| CDN | Cloudflare 無料 | Cloudflare Pro（$20/月）+ OCI Object Storage オリジン | `CDN_BASE_URL` |
+| コンポーネント         | Beta（セルフホスト）                         | 本番（OCI ファースト）                                     | 切替手段                                 |
+| ---------------------- | -------------------------------------------- | ---------------------------------------------------------- | ---------------------------------------- |
+| API Gateway            | Traefik on VPS                               | **OCI Load Balancer + API Gateway**（または Traefik 継続） | 環境変数 `API_GATEWAY_URL`               |
+| 認証                   | Cognito（Beta から継続）                     | Cognito（継続）                                            | 変更なし                                 |
+| データベース           | MySQL on VPS                                 | **OCI Autonomous Database for MySQL**                      | 接続文字列 `DATABASE_URL`                |
+| キャッシュ             | Redis on VPS                                 | **OCI Cache with Redis**（または VPS Redis 継続）          | `REDIS_URL`                              |
+| メッセージキュー       | **Redis + BullMQ / Sidekiq**（セルフホスト） | **OCI Queue Service**（AMQP）または **AWS SQS**            | Feature Flag `queue.provider` + アダプタ |
+| オブジェクトストレージ | Garage on レンタルサーバー（or VPS）         | **OCI Object Storage**（S3互換）                           | `S3_ENDPOINT_URL`                        |
+| メール                 | レンタルサーバー(メールサーバー)             | 選定予定                                                   | 変更なし                                 |
+| プッシュ通知           | Firebase FCM                                 | Firebase FCM（継続）                                       | 変更なし                                 |
+| Feature Flag基盤       | Flipt（セルフホスト）                        | Flipt（継続、OCI VPS 上）                                  | 変更なし                                 |
+| 監査ログ保管           | MySQL + S3 冷却                              | OCI Object Storage + **Archive tier**                      | `AUDIT_ARCHIVE_BUCKET`                   |
+| ログ集約               | Grafana Loki（セルフホスト）                 | OCI Logging（または Loki 継続）                            | Feature Flag `observability.stack`       |
+| CDN                    | Cloudflare 無料                              | Cloudflare Pro（$20/月）+ OCI Object Storage オリジン      | `CDN_BASE_URL`                           |
 
 ### 5.2 切替単位：リポジトリ不変／環境変数可変
 
-| 変更タイプ | 具体例 | Beta→本番でやること |
-|---|---|---|
-| **ハードコード禁止項目** | `queueProvider = "redis"`、`s3Endpoint = "https://minio.local"` | ❌ コード内に直接書かない |
-| **環境変数で差し替え** | `QUEUE_PROVIDER=redis` → `QUEUE_PROVIDER=sqs` | `.env.production` を書き換えるだけ |
-| **Feature Flag で切替** | `feature.queue.useSQS=true` | Flipt ダッシュボードで ON にするだけ |
-| **アダプタ実装で吸収** | `QueueAdapter` インタフェース配下に `RedisAdapter` / `SqsAdapter` を並存 | 新 Adapter 実装を追加、Flag で選択 |
+| 変更タイプ               | 具体例                                                                   | Beta→本番でやること                  |
+| ------------------------ | ------------------------------------------------------------------------ | ------------------------------------ |
+| **ハードコード禁止項目** | `queueProvider = "redis"`、`s3Endpoint = "https://minio.local"`          | ❌ コード内に直接書かない             |
+| **環境変数で差し替え**   | `QUEUE_PROVIDER=redis` → `QUEUE_PROVIDER=sqs`                            | `.env.production` を書き換えるだけ   |
+| **Feature Flag で切替**  | `feature.queue.useSQS=true`                                              | Flipt ダッシュボードで ON にするだけ |
+| **アダプタ実装で吸収**   | `QueueAdapter` インタフェース配下に `RedisAdapter` / `SqsAdapter` を並存 | 新 Adapter 実装を追加、Flag で選択   |
 
 詳細は [環境抽象化 & Feature Flag 駆動切替](environment-abstraction.md) を参照。
 
@@ -233,27 +233,27 @@ gantt
 
 ## 7. リスクと緩和策
 
-| リスク | 影響度 | 緩和策 |
-|---|---|---|
-| OCI Japan リージョンの Always Free 枠枯渇（近年発生している） | 中 | Open Beta 開始時に有償シェイプに先行切替、ConoHa VPS をバックアップ候補に維持 |
-| レンタルサーバーでの MinIO 動作不可 | 中 | §4.4 のフォールバック構成を初期から検証 |
-| AWS Cognito の無料枠（50,000 MAU）超過 | 低 | Open Beta で10,000 MAU 到達時点でコスト試算をアラート化 |
-| Cloudflare 無料プランの WAF ルール制限 | 低 | 有償プラン $20/月 で解決、本番前に切替 |
-| OCI ↔ AWS 間のクロスクラウド通信コスト | 中 | 同期通信を避け、**非同期イベント + CDN キャッシュ** で削減。OCI エグレス 10TB 無料枠内で収める |
-| 単一クラウド依存による障害耐性 | 中 | Feature Flag でマルチリージョン DR を切替可能にし、OCI 東京 ↔ 大阪 の冗長化を GA 前に構築 |
+| リスク                                                        | 影響度 | 緩和策                                                                                         |
+| ------------------------------------------------------------- | ------ | ---------------------------------------------------------------------------------------------- |
+| OCI Japan リージョンの Always Free 枠枯渇（近年発生している） | 中     | Open Beta 開始時に有償シェイプに先行切替、ConoHa VPS をバックアップ候補に維持                  |
+| レンタルサーバーでの MinIO 動作不可                           | 中     | §4.4 のフォールバック構成を初期から検証                                                        |
+| AWS Cognito の無料枠（50,000 MAU）超過                        | 低     | Open Beta で10,000 MAU 到達時点でコスト試算をアラート化                                        |
+| Cloudflare 無料プランの WAF ルール制限                        | 低     | 有償プラン $20/月 で解決、本番前に切替                                                         |
+| OCI ↔ AWS 間のクロスクラウド通信コスト                        | 中     | 同期通信を避け、**非同期イベント + CDN キャッシュ** で削減。OCI エグレス 10TB 無料枠内で収める |
+| 単一クラウド依存による障害耐性                                | 中     | Feature Flag でマルチリージョン DR を切替可能にし、OCI 東京 ↔ 大阪 の冗長化を GA 前に構築      |
 
 ---
 
 ## 8. 運用指標（SLO）
 
-| 指標 | Beta 目標 | 本番目標 |
-|---|---|---|
-| API 可用性 | 99.0% | 99.9% |
-| P95 レイテンシ | 500ms | 250ms |
-| キュー処理遅延（P95） | 10秒 | 2秒 |
-| 月間ダウンタイム許容 | 7時間 | 43分 |
-| RPO（復旧時点目標） | 24時間（日次バックアップ） | 1時間 |
-| RTO（復旧時間目標） | 4時間 | 30分 |
+| 指標                  | Beta 目標                  | 本番目標 |
+| --------------------- | -------------------------- | -------- |
+| API 可用性            | 99.0%                      | 99.9%    |
+| P95 レイテンシ        | 500ms                      | 250ms    |
+| キュー処理遅延（P95） | 10秒                       | 2秒      |
+| 月間ダウンタイム許容  | 7時間                      | 43分     |
+| RPO（復旧時点目標）   | 24時間（日次バックアップ） | 1時間    |
+| RTO（復旧時間目標）   | 4時間                      | 30分     |
 
 ---
 

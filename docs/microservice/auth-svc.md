@@ -29,24 +29,24 @@ Key User Stories:
 
 ### ドメインモデル
 
-| エンティティ | 説明 | 主要属性 |
-| --- | --- | --- |
-| User | 認証済みユーザー。Cognitoと同期 | user_id (UUID), email, phone_number, cognito_sub, status (ACTIVE/SUSPENDED), created_at, updated_at, sync_version |
-| Session | ユーザーのログインセッション。デバイス・トークン・有効期限を管理 | session_id (UUID), user_id, device_id, access_token_jti, refresh_token_jti, issued_at, access_expires_at, refresh_expires_at, ip_address, user_agent, is_revoked |
-| Device | ユーザーが使用するデバイス（iOS/Web）の登録情報 | device_id (UUID), user_id, device_name, device_type, os_version, app_version, fingerprint, last_seen_at, created_at, is_archived |
-| BlockedToken | 無効化されたJWT (ログアウト・強制切断) | jti (UUID), user_id, token_type (ACCESS/REFRESH), revocation_reason (LOGOUT/USER_SUSPENDED/DEVICE_ARCHIVED), expires_at, blocked_at |
-| RefreshTokenGrant | RefreshToken更新時の監査ログ | grant_id (UUID), user_id, old_jti, new_jti, device_id, requested_at, granted_at, client_ip |
+| エンティティ      | 説明                                                             | 主要属性                                                                                                                                                         |
+| ----------------- | ---------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| User              | 認証済みユーザー。Cognitoと同期                                  | user_id (UUID), email, phone_number, cognito_sub, status (ACTIVE/SUSPENDED), created_at, updated_at, sync_version                                                |
+| Session           | ユーザーのログインセッション。デバイス・トークン・有効期限を管理 | session_id (UUID), user_id, device_id, access_token_jti, refresh_token_jti, issued_at, access_expires_at, refresh_expires_at, ip_address, user_agent, is_revoked |
+| Device            | ユーザーが使用するデバイス（iOS/Web）の登録情報                  | device_id (UUID), user_id, device_name, device_type, os_version, app_version, fingerprint, last_seen_at, created_at, is_archived                                 |
+| BlockedToken      | 無効化されたJWT (ログアウト・強制切断)                           | jti (UUID), user_id, token_type (ACCESS/REFRESH), revocation_reason (LOGOUT/USER_SUSPENDED/DEVICE_ARCHIVED), expires_at, blocked_at                              |
+| RefreshTokenGrant | RefreshToken更新時の監査ログ                                     | grant_id (UUID), user_id, old_jti, new_jti, device_id, requested_at, granted_at, client_ip                                                                       |
 
 ### 値オブジェクト
 
-| 値オブジェクト | 説明 | バリデーションルール |
-| --- | --- | --- |
-| JWTClaims | Cognitoから取得したJWTペイロード | sub (Cognito user UUID), email, phone_number, exp, iat, jti (JWT ID), iss (Cognito User Pool URL), aud, token_use (access/id) |
-| AccessToken | 署名済みAccess Token (有効期限1時間) | RS256署名, RS256またはRS384キー。JTI・user_id・device_id・permissions_version・timestamp含有 |
-| RefreshToken | Refresh Token (有効期限30日)。セキュアHttpOnly Cookie またはレスポンスボディ | RS256署名, JTI・user_id・device_id・grant_generation含有。DBのrefresh_token_grantで追跡可能 |
-| DeviceFingerprint | デバイスの一意識別子 | SHA256(device_type + os_version + app_version)。偽装防止用に定期更新可能 |
-| CognitoUserID | Cognito User Pool内の一意識別子 | UUID形式。user_idの外部キー |
-| TokenRevocationReason | トークン無効化の理由 | LOGOUT (ユーザー明示的), USER_SUSPENDED (人事システム同期), DEVICE_ARCHIVED (デバイス削除), PERMISSION_REVOKED (権限剥奪) |
+| 値オブジェクト        | 説明                                                                         | バリデーションルール                                                                                                          |
+| --------------------- | ---------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| JWTClaims             | Cognitoから取得したJWTペイロード                                             | sub (Cognito user UUID), email, phone_number, exp, iat, jti (JWT ID), iss (Cognito User Pool URL), aud, token_use (access/id) |
+| AccessToken           | 署名済みAccess Token (有効期限1時間)                                         | RS256署名, RS256またはRS384キー。JTI・user_id・device_id・permissions_version・timestamp含有                                  |
+| RefreshToken          | Refresh Token (有効期限30日)。セキュアHttpOnly Cookie またはレスポンスボディ | RS256署名, JTI・user_id・device_id・grant_generation含有。DBのrefresh_token_grantで追跡可能                                   |
+| DeviceFingerprint     | デバイスの一意識別子                                                         | SHA256(device_type + os_version + app_version)。偽装防止用に定期更新可能                                                      |
+| CognitoUserID         | Cognito User Pool内の一意識別子                                              | UUID形式。user_idの外部キー                                                                                                   |
+| TokenRevocationReason | トークン無効化の理由                                                         | LOGOUT (ユーザー明示的), USER_SUSPENDED (人事システム同期), DEVICE_ARCHIVED (デバイス削除), PERMISSION_REVOKED (権限剥奪)     |
 
 ### ドメインルール / 不変条件
 
@@ -63,17 +63,17 @@ Key User Stories:
 
 ### ドメインイベント
 
-| イベント | トリガー | 主要ペイロード |
-| --- | --- | --- |
-| UserLoggedIn | ログイン成功時 | user_id, session_id, device_id, issued_at, client_ip, device_name |
-| UserLoggedOut | ログアウト成功時 | user_id, session_id, device_id, logout_time, revoked_tokens_count |
-| TokenRefreshed | RefreshToken実行成功時 | user_id, old_jti, new_jti, device_id, timestamp |
-| TokenRevoked | JWTが無効化された時 | jti, user_id, token_type, reason, revoked_at, expires_at |
-| DeviceRegistered | デバイスが初めてログインした時 | user_id, device_id, device_name, device_type, fingerprint |
-| DeviceArchived | デバイスが削除/アーカイブされた時 | user_id, device_id, archived_at, session_count_revoked |
-| UserSuspended | 人事システムからのサスペンド通知受信時 | user_id, suspended_at, sessions_count, reason |
-| CognitoUserSynced | Cognitoユーザー情報がローカルDBに同期された時 | user_id, cognito_sub, email, phone, status, sync_version |
-| JWKSRotated | Cognitoが公開鍵をローテーションした時 | kid_list, rotated_at, previous_kid_list |
+| イベント          | トリガー                                      | 主要ペイロード                                                    |
+| ----------------- | --------------------------------------------- | ----------------------------------------------------------------- |
+| UserLoggedIn      | ログイン成功時                                | user_id, session_id, device_id, issued_at, client_ip, device_name |
+| UserLoggedOut     | ログアウト成功時                              | user_id, session_id, device_id, logout_time, revoked_tokens_count |
+| TokenRefreshed    | RefreshToken実行成功時                        | user_id, old_jti, new_jti, device_id, timestamp                   |
+| TokenRevoked      | JWTが無効化された時                           | jti, user_id, token_type, reason, revoked_at, expires_at          |
+| DeviceRegistered  | デバイスが初めてログインした時                | user_id, device_id, device_name, device_type, fingerprint         |
+| DeviceArchived    | デバイスが削除/アーカイブされた時             | user_id, device_id, archived_at, session_count_revoked            |
+| UserSuspended     | 人事システムからのサスペンド通知受信時        | user_id, suspended_at, sessions_count, reason                     |
+| CognitoUserSynced | Cognitoユーザー情報がローカルDBに同期された時 | user_id, cognito_sub, email, phone, status, sync_version          |
+| JWKSRotated       | Cognitoが公開鍵をローテーションした時         | kid_list, rotated_at, previous_kid_list                           |
 
 ### エンティティ定義（コードスケッチ）
 
@@ -178,19 +178,19 @@ type RefreshTokenGrant struct {
 
 ### ユースケース一覧
 
-| ユースケース | 入力DTO | 出力DTO | 説明 |
-| --- | --- | --- | --- |
-| Login | LoginInput{phone_number, password, device_name, device_type} | LoginOutput{access_token, refresh_token, session_id, user_id} | Cognitoに対して認証を実行し、セッション・デバイス登録を行う。最重要ユースケース |
-| RefreshToken | RefreshTokenInput{refresh_token, device_id} | RefreshTokenOutput{new_access_token, session_id} | RefreshTokenから新AccessTokenを発行。古いJTIをブロック |
-| Logout | LogoutInput{user_id, session_id?, revoke_all} | LogoutOutput{revoked_count} | セッションを無効化。revoke_all=trueで全セッション終了 |
-| GetJWKS | GetJWKSInput{} | GetJWKSOutput{jwks_json} | API Gatewayへ向けてCognitoのJWKSを返す。Redisキャッシュ利用 |
-| SyncCognitoUser | SyncCognitoUserInput{cognito_event, user_id} | SyncCognitoUserOutput{user, sync_version} | Cognitoログイン時にユーザー情報を同期。StatusチェックためPermission Serviceと連動 |
-| RegisterDevice | RegisterDeviceInput{user_id, device_name, device_type, os_version} | RegisterDeviceOutput{device_id, created} | デバイスを登録。初回ログイン時に自動実行 |
-| ArchiveDevice | ArchiveDeviceInput{user_id, device_id} | ArchiveDeviceOutput{archived, revoked_session_count} | デバイスをアーカイブし、紐づく全Sessionを無効化 |
-| RevokeUserTokens | RevokeUserTokensInput{user_id, reason, skip_device_id?} | RevokeUserTokensOutput{revoked_count} | ユーザーの全JTIをブロック。特定デバイドをスキップ可能。人事システム同期用 |
-| ValidateToken | ValidateTokenInput{token_string} | ValidateTokenOutput{claims, is_valid, reason} | トークンがまだ有効か確認。BlockedTokensチェック含む |
-| GetSession | GetSessionInput{session_id} | GetSessionOutput{session, user, device} | セッション情報を取得。ユーザーのセッション一覧表示用 |
-| ListSessions | ListSessionsInput{user_id} | ListSessionsOutput{sessions[]} | ユーザーの全セッション（全デバイス）を一覧表示 |
+| ユースケース     | 入力DTO                                                            | 出力DTO                                                       | 説明                                                                              |
+| ---------------- | ------------------------------------------------------------------ | ------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| Login            | LoginInput{phone_number, password, device_name, device_type}       | LoginOutput{access_token, refresh_token, session_id, user_id} | Cognitoに対して認証を実行し、セッション・デバイス登録を行う。最重要ユースケース   |
+| RefreshToken     | RefreshTokenInput{refresh_token, device_id}                        | RefreshTokenOutput{new_access_token, session_id}              | RefreshTokenから新AccessTokenを発行。古いJTIをブロック                            |
+| Logout           | LogoutInput{user_id, session_id?, revoke_all}                      | LogoutOutput{revoked_count}                                   | セッションを無効化。revoke_all=trueで全セッション終了                             |
+| GetJWKS          | GetJWKSInput{}                                                     | GetJWKSOutput{jwks_json}                                      | API Gatewayへ向けてCognitoのJWKSを返す。Redisキャッシュ利用                       |
+| SyncCognitoUser  | SyncCognitoUserInput{cognito_event, user_id}                       | SyncCognitoUserOutput{user, sync_version}                     | Cognitoログイン時にユーザー情報を同期。StatusチェックためPermission Serviceと連動 |
+| RegisterDevice   | RegisterDeviceInput{user_id, device_name, device_type, os_version} | RegisterDeviceOutput{device_id, created}                      | デバイスを登録。初回ログイン時に自動実行                                          |
+| ArchiveDevice    | ArchiveDeviceInput{user_id, device_id}                             | ArchiveDeviceOutput{archived, revoked_session_count}          | デバイスをアーカイブし、紐づく全Sessionを無効化                                   |
+| RevokeUserTokens | RevokeUserTokensInput{user_id, reason, skip_device_id?}            | RevokeUserTokensOutput{revoked_count}                         | ユーザーの全JTIをブロック。特定デバイドをスキップ可能。人事システム同期用         |
+| ValidateToken    | ValidateTokenInput{token_string}                                   | ValidateTokenOutput{claims, is_valid, reason}                 | トークンがまだ有効か確認。BlockedTokensチェック含む                               |
+| GetSession       | GetSessionInput{session_id}                                        | GetSessionOutput{session, user, device}                       | セッション情報を取得。ユーザーのセッション一覧表示用                              |
+| ListSessions     | ListSessionsInput{user_id}                                         | ListSessionsOutput{sessions[]}                                | ユーザーの全セッション（全デバイス）を一覧表示                                    |
 
 ### ユースケース詳細（主要ユースケース）
 
@@ -361,40 +361,40 @@ type RateLimitPort interface {
 
 ### コントローラ / ハンドラ
 
-| コントローラ | ルート/トリガー | ユースケース |
-| --- | --- | --- |
-| AuthHTTPHandler | POST /api/auth/login | LoginUseCase |
-| AuthHTTPHandler | POST /api/auth/refresh | RefreshTokenUseCase |
-| AuthHTTPHandler | POST /api/auth/logout | LogoutUseCase |
-| AuthHTTPHandler | GET /api/auth/sessions | ListSessionsUseCase |
-| AuthHTTPHandler | DELETE /api/auth/sessions/{session_id} | RevokeSessionUseCase |
-| AuthHTTPHandler | POST /api/auth/devices/{device_id}/archive | ArchiveDeviceUseCase |
-| JWKSHTTPHandler | GET /.well-known/jwks.json | GetJWKSUseCase |
-| HealthHandler | GET /health | ヘルスチェック |
-| MetricsHandler | GET /metrics | Prometheusメトリクス |
-| SQSConsumer | Queue: user.suspended | RevokeUserTokensUseCase |
-| SQSConsumer | Queue: device.revocation_requested | RevokeDeviceSessionsUseCase |
+| コントローラ    | ルート/トリガー                            | ユースケース                |
+| --------------- | ------------------------------------------ | --------------------------- |
+| AuthHTTPHandler | POST /api/auth/login                       | LoginUseCase                |
+| AuthHTTPHandler | POST /api/auth/refresh                     | RefreshTokenUseCase         |
+| AuthHTTPHandler | POST /api/auth/logout                      | LogoutUseCase               |
+| AuthHTTPHandler | GET /api/auth/sessions                     | ListSessionsUseCase         |
+| AuthHTTPHandler | DELETE /api/auth/sessions/{session_id}     | RevokeSessionUseCase        |
+| AuthHTTPHandler | POST /api/auth/devices/{device_id}/archive | ArchiveDeviceUseCase        |
+| JWKSHTTPHandler | GET /.well-known/jwks.json                 | GetJWKSUseCase              |
+| HealthHandler   | GET /health                                | ヘルスチェック              |
+| MetricsHandler  | GET /metrics                               | Prometheusメトリクス        |
+| SQSConsumer     | Queue: user.suspended                      | RevokeUserTokensUseCase     |
+| SQSConsumer     | Queue: device.revocation_requested         | RevokeDeviceSessionsUseCase |
 
 ### リポジトリ実装
 
-| ポートインターフェース | 実装クラス | データストア |
-| --- | --- | --- |
-| UserRepository | PostgreSQLUserRepository | PostgreSQL (users テーブル) |
-| SessionRepository | PostgreSQLSessionRepository | PostgreSQL (sessions テーブル) |
-| DeviceRepository | PostgreSQLDeviceRepository | PostgreSQL (devices テーブル) |
-| BlockedTokenRepository | RedisBlockedTokenRepository | Redis 7.x (blocked_tokens:{jti} → TTL付き) |
-| RefreshTokenGrantRepository | PostgreSQLRefreshTokenGrantRepository | PostgreSQL (refresh_token_grants テーブル) |
-| JWKSRepository | RedisJWKSRepository | Redis 7.x (auth:jwks → TTL 5分) |
+| ポートインターフェース      | 実装クラス                       | データストア                               |
+| --------------------------- | -------------------------------- | ------------------------------------------ |
+| UserRepository              | MySQLUserRepository              | MySQL (users テーブル)                     |
+| SessionRepository           | MySQLSessionRepository           | MySQL (sessions テーブル)                  |
+| DeviceRepository            | MySQLDeviceRepository            | MySQL (devices テーブル)                   |
+| BlockedTokenRepository      | RedisBlockedTokenRepository      | Redis 7.x (blocked_tokens:{jti} → TTL付き) |
+| RefreshTokenGrantRepository | MySQLRefreshTokenGrantRepository | MySQL (refresh_token_grants テーブル)      |
+| JWKSRepository              | RedisJWKSRepository              | Redis 7.x (auth:jwks → TTL 5分)            |
 
 ### 外部サービスアダプタ
 
-| ポートインターフェース | アダプタクラス | 外部システム |
-| --- | --- | --- |
-| CognitoAuthPort | AWSCognitoAdapter | AWS Cognito (InitiateAuth, GetUser) |
-| JWTSignerPort | RSA256JWTSigner | ローカルRSA秘密鍵（Cognito公開鍵で検証） |
-| PermissionPort | PermissionServiceGRPCAdapter | recuerdo-permission-svc (gRPC) |
-| EventPublisherPort | SQSEventPublisher | AWS SQS (recuerdo-auth-events, recuerdo-gateway-events) |
-| RateLimitPort | RedisRateLimitAdapter | Redis 7.x (rate_limit:login:{phone}:{minute} 等) |
+| ポートインターフェース | アダプタクラス               | 外部システム                                            |
+| ---------------------- | ---------------------------- | ------------------------------------------------------- |
+| CognitoAuthPort        | AWSCognitoAdapter            | AWS Cognito (InitiateAuth, GetUser)                     |
+| JWTSignerPort          | RSA256JWTSigner              | ローカルRSA秘密鍵（Cognito公開鍵で検証）                |
+| PermissionPort         | PermissionServiceGRPCAdapter | recuerdo-permission-svc (gRPC)                          |
+| EventPublisherPort     | SQSEventPublisher            | AWS SQS (recuerdo-auth-events, recuerdo-gateway-events) |
+| RateLimitPort          | RedisRateLimitAdapter        | Redis 7.x (rate_limit:login:{phone}:{minute} 等)        |
 
 ## 5. インフラストラクチャ層
 
@@ -404,45 +404,45 @@ Go 1.22 + net/http (HTTPサーバー) + chi (ルーティング) + middleware (C
 
 ### データベース
 
-PostgreSQL 15.x (users, sessions, devices, refresh_token_grants テーブル。トランザクション・監査ログ)
+MySQL 15.x (users, sessions, devices, refresh_token_grants テーブル。トランザクション・監査ログ)
 Redis 7.x (blocked_tokens, jwks キャッシュ、レート制限 sliding window)
 
 ### 主要ライブラリ・SDK
 
-| ライブラリ | 目的 | レイヤー |
-| --- | --- | --- |
-| golang-jwt/jwt/v5 | JWT署名・検証 | Adapter |
-| aws-sdk-go-v2/service/cognito-idp | Cognito InitiateAuth・GetUser | Infrastructure |
-| lestrrat-go/jwx/v2 | JWKS取得・解析 | Infrastructure |
-| go-redis/v9 | BlockedTokens・JWKS・レート制限管理 | Infrastructure |
-| lib/pq | PostgreSQL ドライバ | Infrastructure |
-| go-sql-driver/migrations | DB マイグレーション | Infrastructure |
-| google.golang.org/grpc | Permission Service gRPCクライアント | Infrastructure |
-| aws-sdk-go-v2/service/sqs | SQS イベント発行 | Infrastructure |
-| uber-go/fx | 依存性注入 | Infrastructure |
-| uber-go/zap | 構造化ログ | Infrastructure |
-| go.opentelemetry.io/otel | 分散トレーシング | Infrastructure |
-| prometheus/client_golang | メトリクス収集 | Infrastructure |
-| golang.org/x/crypto | パスワード ハッシング (bcrypt は不要。Cognito委譲) | Infrastructure |
+| ライブラリ                        | 目的                                               | レイヤー       |
+| --------------------------------- | -------------------------------------------------- | -------------- |
+| golang-jwt/jwt/v5                 | JWT署名・検証                                      | Adapter        |
+| aws-sdk-go-v2/service/cognito-idp | Cognito InitiateAuth・GetUser                      | Infrastructure |
+| lestrrat-go/jwx/v2                | JWKS取得・解析                                     | Infrastructure |
+| go-redis/v9                       | BlockedTokens・JWKS・レート制限管理                | Infrastructure |
+| lib/pq                            | MySQL ドライバ                                     | Infrastructure |
+| go-sql-driver/migrations          | DB マイグレーション                                | Infrastructure |
+| google.golang.org/grpc            | Permission Service gRPCクライアント                | Infrastructure |
+| aws-sdk-go-v2/service/sqs         | SQS イベント発行                                   | Infrastructure |
+| uber-go/fx                        | 依存性注入                                         | Infrastructure |
+| uber-go/zap                       | 構造化ログ                                         | Infrastructure |
+| go.opentelemetry.io/otel          | 分散トレーシング                                   | Infrastructure |
+| prometheus/client_golang          | メトリクス収集                                     | Infrastructure |
+| golang.org/x/crypto               | パスワード ハッシング (bcrypt は不要。Cognito委譲) | Infrastructure |
 
 ### 依存性注入
 
-uber-go/fx を使用。PostgreSQL・Redis接続プール、gRPC接続を共有。
+uber-go/fx を使用。MySQL・Redis接続プール、gRPC接続を共有。
 
 ```go
 fx.Provide(
-    NewPostgresConnection,           // PostgreSQL pool
+    NewMySQLConnection,           // MySQL pool
     NewRedisClient,                  // Redis connection
     NewCognitoClient,                // AWS SDK Cognito
     NewSQSClient,                    // AWS SDK SQS
     NewGRPCPermissionClient,         // gRPC Permission Service
     
     // Repositories
-    NewPostgreSQLUserRepository,     // → UserRepository
-    NewPostgreSQLSessionRepository,  // → SessionRepository
-    NewPostgreSQLDeviceRepository,   // → DeviceRepository
+    NewMySQLUserRepository,     // → UserRepository
+    NewMySQLSessionRepository,  // → SessionRepository
+    NewMySQLDeviceRepository,   // → DeviceRepository
     NewRedisBlockedTokenRepository,  // → BlockedTokenRepository
-    NewPostgreSQLRefreshTokenGrantRepository,
+    NewMySQLRefreshTokenGrantRepository,
     NewRedisJWKSRepository,          // → JWKSRepository
     
     // Service Adapters
@@ -520,7 +520,7 @@ recuerdo-auth-svc/
 │   │       ├── logging.go
 │   │       └── rate_limit.go
 │   └── infrastructure/
-│       ├── postgres/
+│       ├── MySQL/
 │       │   ├── user_repo.go
 │       │   ├── session_repo.go
 │       │   ├── device_repo.go
@@ -558,15 +558,15 @@ recuerdo-auth-svc/
 
 ### レイヤー別テストピラミッド
 
-| レイヤー | テスト種別 | モック戦略 |
-| --- | --- | --- |
-| Domain (entity/valueobject) | Unit test | 外部依存なし。User.CanLogin()・Session.IsValid()等 |
-| UseCase | Unit test | mockeryで全ポート（CognitoAuthPort/PermissionPort/EventPublisherPort等）をモック |
-| Adapter (HTTP) | Integration test | httptest.Server で上流をモック。Login・Refresh・Logoutの完全フロー |
-| Infrastructure (PostgreSQL) | Integration test | testcontainers-go でPostgres 15コンテナを起動。本物の table・transaction・lock動作を検証 |
-| Infrastructure (Redis) | Integration test | testcontainers-go でRedis 7コンテナを起動。BlockedTokens・JWKS 検証 |
-| E2E | E2E test | Cognito sandbox環境。ログイン→トークン生成→リフレッシュ→ログアウトの実シナリオ |
-| Security test | Penetration test | OWASP ZAP自動スキャン。JWT改ざん・device_fingerprint偽装・Cognito token reuse攻撃 |
+| レイヤー                    | テスト種別       | モック戦略                                                                            |
+| --------------------------- | ---------------- | ------------------------------------------------------------------------------------- |
+| Domain (entity/valueobject) | Unit test        | 外部依存なし。User.CanLogin()・Session.IsValid()等                                    |
+| UseCase                     | Unit test        | mockeryで全ポート（CognitoAuthPort/PermissionPort/EventPublisherPort等）をモック      |
+| Adapter (HTTP)              | Integration test | httptest.Server で上流をモック。Login・Refresh・Logoutの完全フロー                    |
+| Infrastructure (MySQL)      | Integration test | testcontainers-go でMySQL 15コンテナを起動。本物の table・transaction・lock動作を検証 |
+| Infrastructure (Redis)      | Integration test | testcontainers-go でRedis 7コンテナを起動。BlockedTokens・JWKS 検証                   |
+| E2E                         | E2E test         | Cognito sandbox環境。ログイン→トークン生成→リフレッシュ→ログアウトの実シナリオ        |
+| Security test               | Penetration test | OWASP ZAP自動スキャン。JWT改ざん・device_fingerprint偽装・Cognito token reuse攻撃     |
 
 ### テストコード例
 
@@ -648,12 +648,12 @@ func TestRefreshTokenUseCase_TokenBlocked_ReturnsError(t *testing.T) {
     assert.ErrorIs(t, err, ErrTokenRevoked)
 }
 
-// Integration Test (PostgreSQL)
+// Integration Test (MySQL)
 func TestSessionRepository_RevokeByUserID(t *testing.T) {
     db := setupTestDB()
     defer db.Close()
     
-    repo := NewPostgreSQLSessionRepository(db)
+    repo := NewMySQLSessionRepository(db)
     
     // Insert test sessions
     session1 := &Session{SessionID: "s1", UserID: "user-1", DeviceID: "d1", IsRevoked: false}
@@ -719,31 +719,31 @@ func TestBlockedTokenRepository_ExpirationCleanup(t *testing.T) {
 - ErrRateLimitExceeded: ログイン試行回数が制限を超過（電話番号単位 1分5回）
 - ErrCognitoUnavailable: Cognito接続失敗
 - ErrPermissionServiceUnavailable: Permission Service gRPC接続失敗
-- ErrDatabaseError: PostgreSQL操作エラー
+- ErrDatabaseError: MySQL操作エラー
 - ErrRedisError: Redis操作エラー
 
 ### エラー → HTTPステータスマッピング
 
-| ドメインエラー | HTTPステータス | ユーザーメッセージ |
-| --- | --- | --- |
-| ErrInvalidPhoneNumber | 400 Bad Request | Phone number format is invalid. Please use E.164 format. |
-| ErrInvalidPassword | 400 Bad Request | Password must be at least 5 characters. |
-| ErrInvalidCredentials | 401 Unauthorized | Invalid phone number or password. |
-| ErrUserNotFound | 404 Not Found | User not found. |
-| ErrUserSuspended | 403 Forbidden | Your account has been suspended. |
-| ErrAccessTokenExpired | 401 Unauthorized | Access token has expired. Please refresh. |
-| ErrRefreshTokenExpired | 401 Unauthorized | Refresh token has expired. Please log in again. |
-| ErrTokenRevoked | 401 Unauthorized | Token has been revoked. Please log in again. |
-| ErrInvalidToken | 401 Unauthorized | Invalid or malformed authentication token. |
-| ErrDeviceNotFound | 404 Not Found | Device not found. |
-| ErrSessionNotFound | 404 Not Found | Session not found. |
-| ErrDeviceFingerprintMismatch | 403 Forbidden | Device fingerprint mismatch. Possible unauthorized access. |
-| ErrSessionInvalid | 401 Unauthorized | Session is invalid or expired. |
-| ErrRateLimitExceeded | 429 Too Many Requests | Too many login attempts. Please try again in 1 minute. |
-| ErrCognitoUnavailable | 503 Service Unavailable | Authentication service temporarily unavailable. |
-| ErrPermissionServiceUnavailable | 503 Service Unavailable | Permission service temporarily unavailable. |
-| ErrDatabaseError | 500 Internal Server Error | An internal error occurred. Please try again later. |
-| ErrRedisError | 500 Internal Server Error | An internal error occurred. Please try again later. |
+| ドメインエラー                  | HTTPステータス            | ユーザーメッセージ                                         |
+| ------------------------------- | ------------------------- | ---------------------------------------------------------- |
+| ErrInvalidPhoneNumber           | 400 Bad Request           | Phone number format is invalid. Please use E.164 format.   |
+| ErrInvalidPassword              | 400 Bad Request           | Password must be at least 5 characters.                    |
+| ErrInvalidCredentials           | 401 Unauthorized          | Invalid phone number or password.                          |
+| ErrUserNotFound                 | 404 Not Found             | User not found.                                            |
+| ErrUserSuspended                | 403 Forbidden             | Your account has been suspended.                           |
+| ErrAccessTokenExpired           | 401 Unauthorized          | Access token has expired. Please refresh.                  |
+| ErrRefreshTokenExpired          | 401 Unauthorized          | Refresh token has expired. Please log in again.            |
+| ErrTokenRevoked                 | 401 Unauthorized          | Token has been revoked. Please log in again.               |
+| ErrInvalidToken                 | 401 Unauthorized          | Invalid or malformed authentication token.                 |
+| ErrDeviceNotFound               | 404 Not Found             | Device not found.                                          |
+| ErrSessionNotFound              | 404 Not Found             | Session not found.                                         |
+| ErrDeviceFingerprintMismatch    | 403 Forbidden             | Device fingerprint mismatch. Possible unauthorized access. |
+| ErrSessionInvalid               | 401 Unauthorized          | Session is invalid or expired.                             |
+| ErrRateLimitExceeded            | 429 Too Many Requests     | Too many login attempts. Please try again in 1 minute.     |
+| ErrCognitoUnavailable           | 503 Service Unavailable   | Authentication service temporarily unavailable.            |
+| ErrPermissionServiceUnavailable | 503 Service Unavailable   | Permission service temporarily unavailable.                |
+| ErrDatabaseError                | 500 Internal Server Error | An internal error occurred. Please try again later.        |
+| ErrRedisError                   | 500 Internal Server Error | An internal error occurred. Please try again later.        |
 
 ## 9. SQL スキーマ例
 
@@ -840,13 +840,13 @@ CREATE TABLE refresh_token_grants (
 
 ### 質問・決定事項
 
-| # | 質問 | ステータス | 決定 |
-| --- | --- | --- | --- |
-| 1 | AccessToken有効期限は1時間固定か、ユーザー/デバイス単位で調整可能にするか | Open | 初期は1時間固定。将来的にセキュリティポリシーで設定可能にする方針で検討中 |
-| 2 | RefreshToken 30日の有効期限中に新デバイスからRefreshされた場合の扱い。新セッション扱いか継続扱いか | Open | 新セッション扱い。device_idが異なれば新登録とする。Fraud detectionは権限チェックでカバー |
-| 3 | ユーザーがサスペンドされた際、既存トークンの無効化はSQS経由か直接DBか。遅延許容度は | Open | SQS経由（非同期）で即座にBlockedTokensに追加。API Gateway・Messaging Serviceに通知は1～5秒後 |
-| 4 | Device Fingerprintの計算方法が確定しているか。Device Idempotencyをどう保証するか | Open | 初期案：SHA256(device_type + os_version + app_version)。客户端で再計算可能なので改ざん困難。ただし偽装検知後の対応フロー要検討 |
-| 5 | Cognitoへの認証時に MFA （多要素認証） 対応が必要か。将来の拡張性確保すべきか | Open | 初期は電話番号+パスワードのみ。MFA対応はロードマップに記載し、future-proofな設計を維持 |
-| 6 | PostgreSQLがダウンした場合の Read-Only レプリカへのフェイルオーバーフロー | Open | 未決定。接続プーリング・リトライロジック・監視アラート設定後に確定 |
-| 7 | RedisがダウンしたときBlockedTokensチェックの Fail-Open vs Fail-Closed | Open | 初期は Fail-Closed (全ユーザーログイン拒否)。セキュリティとユーザー体験のバランス後に再評価予定 |
-| 8 | ログアウト時に該当セッションのIPアドレス・User-Agent をクライアントに返すべきか（Suspicious activity警告用） | Open | 未決定。セッション一覧API で返す仕様で検討中。プライバシー考慮要 |
+| #   | 質問                                                                                                         | ステータス | 決定                                                                                                                           |
+| --- | ------------------------------------------------------------------------------------------------------------ | ---------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| 1   | AccessToken有効期限は1時間固定か、ユーザー/デバイス単位で調整可能にするか                                    | Open       | 初期は1時間固定。将来的にセキュリティポリシーで設定可能にする方針で検討中                                                      |
+| 2   | RefreshToken 30日の有効期限中に新デバイスからRefreshされた場合の扱い。新セッション扱いか継続扱いか           | Open       | 新セッション扱い。device_idが異なれば新登録とする。Fraud detectionは権限チェックでカバー                                       |
+| 3   | ユーザーがサスペンドされた際、既存トークンの無効化はSQS経由か直接DBか。遅延許容度は                          | Open       | SQS経由（非同期）で即座にBlockedTokensに追加。API Gateway・Messaging Serviceに通知は1～5秒後                                   |
+| 4   | Device Fingerprintの計算方法が確定しているか。Device Idempotencyをどう保証するか                             | Open       | 初期案：SHA256(device_type + os_version + app_version)。客户端で再計算可能なので改ざん困難。ただし偽装検知後の対応フロー要検討 |
+| 5   | Cognitoへの認証時に MFA （多要素認証） 対応が必要か。将来の拡張性確保すべきか                                | Open       | 初期は電話番号+パスワードのみ。MFA対応はロードマップに記載し、future-proofな設計を維持                                         |
+| 6   | MySQLがダウンした場合の Read-Only レプリカへのフェイルオーバーフロー                                         | Open       | 未決定。接続プーリング・リトライロジック・監視アラート設定後に確定                                                             |
+| 7   | RedisがダウンしたときBlockedTokensチェックの Fail-Open vs Fail-Closed                                        | Open       | 初期は Fail-Closed (全ユーザーログイン拒否)。セキュリティとユーザー体験のバランス後に再評価予定                                |
+| 8   | ログアウト時に該当セッションのIPアドレス・User-Agent をクライアントに返すべきか（Suspicious activity警告用） | Open       | 未決定。セッション一覧API で返す仕様で検討中。プライバシー考慮要                                                               |

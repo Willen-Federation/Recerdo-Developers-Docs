@@ -87,6 +87,7 @@
     ```
 
 エクスポートは非同期処理。完了後にダウンロードURLが設定されます。
+メール宛に出力結果を送信できるようにもします。
 
 ---
 
@@ -113,28 +114,35 @@
 
 ## 監査アクション一覧
 
-| アクション | 説明 |
-|----------|------|
-| `LOGIN` | ユーザーログイン |
-| `LOGOUT` | ユーザーログアウト |
-| `TOKEN_REFRESH` | トークンリフレッシュ |
-| `SESSION_REVOKE` | セッション失効 |
-| `EVENT_CREATE` | イベント作成 |
-| `EVENT_ACTIVATE` | イベントアクティブ化 |
-| `ALBUM_CREATE` | アルバム作成 |
-| `MEDIA_UPLOAD` | メディアアップロード |
-| `MEDIA_DELETE` | メディア削除 |
-| `MEMBER_INVITE` | メンバー招待 |
-| `GDPR_ANONYMIZE` | GDPRデータ匿名化 |
+| アクション        | 説明                     |
+| ----------------- | ------------------------ |
+| `LOGIN`           | ユーザーログイン         |
+| `LOGOUT`          | ユーザーログアウト       |
+| `TOKEN_REFRESH`   | トークンリフレッシュ     |
+| `SESSION_REVOKE`  | セッション失効           |
+| `EVENT_CREATE`    | イベント作成             |
+| `EVENT_INVITE`    | イベント招待             |
+| `EVENT_ACTION`    | イベント関連のアクション |
+| `EVENT_ACTIVATE`  | イベントアクティブ化     |
+| `EVENT_ARCHIVE`   | イベントアーカイブ化     |
+| `COMMENT_CREATE`  | イベント作成             |
+| `COMMENT_DELETE`  | コメント削除             |
+| `REACTION_CREATE` | リアクション作成         |
+| `REACTION_DELETE` | リアクション削除         |
+| `ALBUM_CREATE`    | アルバム作成             |
+| `ALBUM_ACTION`    | アルバム関連のアクション |
+| `MEDIA_UPLOAD`    | メディアアップロード     |
+| `MEDIA_DELETE`    | メディア削除             |
+| `MEMBER_INVITE`   | メンバー招待             |
+| `GDPR_ANONYMIZE`  | GDPRデータ匿名化         |
+| `ADMIN_ACTION`    | 管理者操作               |
 
 ---
 
 ## ヘルスチェック
 
 ### GET `/health`
-
 サービスのヘルスチェック（認証不要）。
 
 ### GET `/metrics`
-
 Prometheusメトリクスエンドポイント（認証不要、内部ネットワーク限定）。

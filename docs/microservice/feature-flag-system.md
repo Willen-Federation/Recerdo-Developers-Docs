@@ -30,23 +30,23 @@ Key User Stories:
 
 ### ドメインモデル
 
-| エンティティ | 説明 | 主要属性 |
-| --- | --- | --- |
-| FeatureFlag | フラグ定義 | flag_key (string, unique), name, description, enabled (bool), flag_type (BOOLEAN/VARIANT), created_at, updated_at |
-| FlagRule | フラグ適用ルール | rule_id (UUID), flag_key, rule_type (PERCENTAGE/SEGMENT/IP_RANGE/ALWAYS), rule_config (JSON), priority (int) |
-| FlagEvaluation | フラグ評価ログ | eval_id (UUID), flag_key, entity_id (user_id), result (bool/variant), rule_matched, evaluated_at |
-| FlagSegment | ユーザーセグメント | segment_key, description, conditions (user_id_list / org_id_list / custom JSON) |
-| FlagAuditLog | 設定変更履歴 | log_id (UUID), flag_key, changed_by, old_value, new_value, changed_at |
+| エンティティ   | 説明               | 主要属性                                                                                                          |
+| -------------- | ------------------ | ----------------------------------------------------------------------------------------------------------------- |
+| FeatureFlag    | フラグ定義         | flag_key (string, unique), name, description, enabled (bool), flag_type (BOOLEAN/VARIANT), created_at, updated_at |
+| FlagRule       | フラグ適用ルール   | rule_id (UUID), flag_key, rule_type (PERCENTAGE/SEGMENT/IP_RANGE/ALWAYS), rule_config (JSON), priority (int)      |
+| FlagEvaluation | フラグ評価ログ     | eval_id (UUID), flag_key, entity_id (user_id), result (bool/variant), rule_matched, evaluated_at                  |
+| FlagSegment    | ユーザーセグメント | segment_key, description, conditions (user_id_list / org_id_list / custom JSON)                                   |
+| FlagAuditLog   | 設定変更履歴       | log_id (UUID), flag_key, changed_by, old_value, new_value, changed_at                                             |
 
 ### 値オブジェクト
 
-| 値オブジェクト | 説明 | バリデーション |
-| --- | --- | --- |
-| FlagKey | フラグ識別子 | snake_case、最大128文字、プレフィックス形式（`feature.album.v2` 等） |
-| RolloutPercentage | ロールアウト割合 | 0〜100の整数 |
-| IPRange | IP制限範囲 | CIDR表記（例: `192.168.1.0/24`）、IPv4/IPv6 |
-| ErrorRateThreshold | 自動停止エラー率閾値 | 0.0〜1.0（例: 0.05 = 5%） |
-| EvaluationContext | フラグ評価コンテキスト | entity_id (user_id), org_id, ip_address, custom_attributes (map) |
+| 値オブジェクト     | 説明                   | バリデーション                                                       |
+| ------------------ | ---------------------- | -------------------------------------------------------------------- |
+| FlagKey            | フラグ識別子           | snake_case、最大128文字、プレフィックス形式（`feature.album.v2` 等） |
+| RolloutPercentage  | ロールアウト割合       | 0〜100の整数                                                         |
+| IPRange            | IP制限範囲             | CIDR表記（例: `192.168.1.0/24`）、IPv4/IPv6                          |
+| ErrorRateThreshold | 自動停止エラー率閾値   | 0.0〜1.0（例: 0.05 = 5%）                                            |
+| EvaluationContext  | フラグ評価コンテキスト | entity_id (user_id), org_id, ip_address, custom_attributes (map)     |
 
 ### ドメインルール / 不変条件
 
@@ -58,28 +58,28 @@ Key User Stories:
 
 ### ドメインイベント
 
-| イベント | トリガー | 主要ペイロード |
-| --- | --- | --- |
-| FlagEnabled | フラグが ON に変更された | flag_key, changed_by, changed_at |
-| FlagDisabled | フラグが OFF に変更された（Kill Switchを含む） | flag_key, reason (MANUAL/AUTO_KILLSWITCH), changed_by, changed_at |
-| FlagRuleUpdated | ルール（Rollout、Segment等）が変更された | flag_key, rule_id, old_config, new_config |
-| KillSwitchTriggered | エラー率閾値超過で自動停止 | flag_key, error_rate, threshold, triggered_at |
-| EvaluationAnomaly | 予期しない評価エラーが多発 | flag_key, error_count, window_seconds |
+| イベント            | トリガー                                       | 主要ペイロード                                                    |
+| ------------------- | ---------------------------------------------- | ----------------------------------------------------------------- |
+| FlagEnabled         | フラグが ON に変更された                       | flag_key, changed_by, changed_at                                  |
+| FlagDisabled        | フラグが OFF に変更された（Kill Switchを含む） | flag_key, reason (MANUAL/AUTO_KILLSWITCH), changed_by, changed_at |
+| FlagRuleUpdated     | ルール（Rollout、Segment等）が変更された       | flag_key, rule_id, old_config, new_config                         |
+| KillSwitchTriggered | エラー率閾値超過で自動停止                     | flag_key, error_rate, threshold, triggered_at                     |
+| EvaluationAnomaly   | 予期しない評価エラーが多発                     | flag_key, error_count, window_seconds                             |
 
 ## 3. ユースケース層（アプリケーション）
 
 ### ユースケース一覧
 
-| ユースケース | 入力 | 出力 | 説明 |
-| --- | --- | --- | --- |
-| EvaluateFlag | EvaluateFlagInput{flag_key, entity_id, context} | EvaluateFlagOutput{enabled, variant, reason} | フラグを評価（マイクロサービスが毎リクエスト呼び出し） |
-| CreateFlag | CreateFlagInput{flag_key, name, description, enabled} | CreateFlagOutput{flag_key} | フラグ新規作成 |
-| UpdateFlagStatus | UpdateFlagStatusInput{flag_key, enabled} | UpdateFlagStatusOutput{updated_at} | フラグON/OFF切り替え |
-| SetRolloutRule | SetRolloutRuleInput{flag_key, percentage} | SetRolloutRuleOutput{rule_id} | Percentage Rollout設定 |
-| SetIPRestriction | SetIPRestrictionInput{flag_key, cidr_ranges[]} | SetIPRestrictionOutput{rule_id} | IP制限設定 |
-| TriggerKillSwitch | TriggerKillSwitchInput{flag_key, reason} | TriggerKillSwitchOutput{disabled_at} | Kill Switch発動（手動または自動） |
-| GetFlagStatus | GetFlagStatusInput{flag_key} | GetFlagStatusOutput{enabled, rules[], eval_stats} | フラグ状態取得 |
-| ListFlags | ListFlagsInput{filter} | ListFlagsOutput{flags[]} | フラグ一覧取得 |
+| ユースケース      | 入力                                                  | 出力                                              | 説明                                                   |
+| ----------------- | ----------------------------------------------------- | ------------------------------------------------- | ------------------------------------------------------ |
+| EvaluateFlag      | EvaluateFlagInput{flag_key, entity_id, context}       | EvaluateFlagOutput{enabled, variant, reason}      | フラグを評価（マイクロサービスが毎リクエスト呼び出し） |
+| CreateFlag        | CreateFlagInput{flag_key, name, description, enabled} | CreateFlagOutput{flag_key}                        | フラグ新規作成                                         |
+| UpdateFlagStatus  | UpdateFlagStatusInput{flag_key, enabled}              | UpdateFlagStatusOutput{updated_at}                | フラグON/OFF切り替え                                   |
+| SetRolloutRule    | SetRolloutRuleInput{flag_key, percentage}             | SetRolloutRuleOutput{rule_id}                     | Percentage Rollout設定                                 |
+| SetIPRestriction  | SetIPRestrictionInput{flag_key, cidr_ranges[]}        | SetIPRestrictionOutput{rule_id}                   | IP制限設定                                             |
+| TriggerKillSwitch | TriggerKillSwitchInput{flag_key, reason}              | TriggerKillSwitchOutput{disabled_at}              | Kill Switch発動（手動または自動）                      |
+| GetFlagStatus     | GetFlagStatusInput{flag_key}                          | GetFlagStatusOutput{enabled, rules[], eval_stats} | フラグ状態取得                                         |
+| ListFlags         | ListFlagsInput{filter}                                | ListFlagsOutput{flags[]}                          | フラグ一覧取得                                         |
 
 ### ユースケース詳細（EvaluateFlag）
 
@@ -171,7 +171,7 @@ func IsAlbumV2Enabled(ctx context.Context, userID string) bool {
 }
 ```
 
-#### PostgreSQL
+#### MySQL
 
 - **用途**: FeatureFlag、FlagRule、FlagSegment、FlagAuditLog の永続化
 - **テーブル**:
@@ -190,17 +190,17 @@ func IsAlbumV2Enabled(ctx context.Context, userID string) bool {
 
 ### インターフェース層 — REST API Endpoints
 
-| エンドポイント | メソッド | 説明 | 認証 |
-| --- | --- | --- | --- |
-| POST /api/flags | POST | フラグ作成 | Admin JWT |
-| GET /api/flags | GET | フラグ一覧取得 | Admin JWT |
-| GET /api/flags/{flag_key} | GET | フラグ詳細取得 | Admin JWT |
-| PUT /api/flags/{flag_key}/status | PUT | ON/OFF切り替え | Admin JWT |
-| POST /api/flags/{flag_key}/kill-switch | POST | Kill Switch発動 | Admin JWT |
-| PUT /api/flags/{flag_key}/rules/rollout | PUT | Percentage Rollout設定 | Admin JWT |
-| PUT /api/flags/{flag_key}/rules/ip | PUT | IP制限設定 | Admin JWT |
-| POST /api/flags/evaluate | POST | フラグ評価（内部API） | Service JWT |
-| GET /api/flags/{flag_key}/audit | GET | 変更履歴取得 | Admin JWT |
+| エンドポイント                          | メソッド | 説明                   | 認証        |
+| --------------------------------------- | -------- | ---------------------- | ----------- |
+| POST /api/flags                         | POST     | フラグ作成             | Admin JWT   |
+| GET /api/flags                          | GET      | フラグ一覧取得         | Admin JWT   |
+| GET /api/flags/{flag_key}               | GET      | フラグ詳細取得         | Admin JWT   |
+| PUT /api/flags/{flag_key}/status        | PUT      | ON/OFF切り替え         | Admin JWT   |
+| POST /api/flags/{flag_key}/kill-switch  | POST     | Kill Switch発動        | Admin JWT   |
+| PUT /api/flags/{flag_key}/rules/rollout | PUT      | Percentage Rollout設定 | Admin JWT   |
+| PUT /api/flags/{flag_key}/rules/ip      | PUT      | IP制限設定             | Admin JWT   |
+| POST /api/flags/evaluate                | POST     | フラグ評価（内部API）  | Service JWT |
+| GET /api/flags/{flag_key}/audit         | GET      | 変更履歴取得           | Admin JWT   |
 
 ## 5. 機能要件詳細
 
@@ -243,20 +243,20 @@ CloudWatch Metrics (ErrorRate per flag_key)
 
 ## 6. コスト分析
 
-| ソリューション | 年間コスト | Go SDK | CNCF準拠 | 自前運用 |
-| --- | --- | --- | --- | --- |
-| **OpenFeature + Flipt（採用）** | **$0** | ✅ | ✅ | 必要（Docker）|
-| Unleash OSS | $0 | ✅ | ❌ | 必要 |
-| Flagsmith OSS | $0 | ✅ | ❌ | 必要 |
-| LaunchDarkly | $10,000+/年 | ✅ | ✅ | 不要 |
-| Split.io | $7,000+/年 | ✅ | ❌ | 不要 |
+| ソリューション                  | 年間コスト  | Go SDK | CNCF準拠 | 自前運用       |
+| ------------------------------- | ----------- | ------ | -------- | -------------- |
+| **OpenFeature + Flipt（採用）** | **$0**      | ✅      | ✅        | 必要（Docker） |
+| Unleash OSS                     | $0          | ✅      | ❌        | 必要           |
+| Flagsmith OSS                   | $0          | ✅      | ❌        | 必要           |
+| LaunchDarkly                    | $10,000+/年 | ✅      | ✅        | 不要           |
+| Split.io                        | $7,000+/年  | ✅      | ❌        | 不要           |
 
 Flipt は他 OSS と比較して軽量（単一バイナリ）でありながら、CNCF 標準の OpenFeature と組み合わせることで将来のツール移行コストを最小化できる。
 
 ## 7. デプロイ・インフラ
 
 - **Flipt サーバー**: Docker コンテナ、ECS Fargate（最小: 256MB / 0.25vCPU）
-- **永続化**: PostgreSQL（Flipt のバックエンドとして設定）
+- **永続化**: MySQL（Flipt のバックエンドとして設定）
 - **スケーリング**: Flipt は水平スケール対応（評価エンジンはステートレス）
 - **モニタリング**: Prometheus メトリクス（Flipt 内蔵）→ CloudWatch
 

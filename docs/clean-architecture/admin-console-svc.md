@@ -16,7 +16,7 @@ flowchart TB
     Next["Next.js / Rails UI"]
     HTTP["HTTP (Echo/Gin/Rails)"]
     BullMQ["BullMQ Worker"]
-    PG["PostgreSQL (GORM/ActiveRecord)"]
+    PG["MySQL (GORM/ActiveRecord)"]
     Flipt["Flipt Client"]
     Cognito["Cognito SDK"]
   end
@@ -94,16 +94,6 @@ type AdminUser struct {
     Status      AdminUserStatus // ACTIVE | LOCKED | DISABLED
 }
 
-// ビジネスルール: MFA 無効の管理者はログイン不可
-func (u *AdminUser) CanLogin() error {
-    if !u.MFAEnabled {
-        return ErrMFARequired
-    }
-    if u.Status != AdminUserStatusActive {
-        return ErrInactive
-    }
-    return nil
-}
 
 // スコープ判定
 func (u *AdminUser) CanPerform(scope AdminScope) bool {
@@ -302,7 +292,7 @@ internal/
       json_presenter.go
       csv_presenter.go     # エクスポート用
     gateway/
-      admin_repo_pg.go     # PostgreSQL 実装
+      admin_repo_pg.go     # MySQL 実装
       audit_http_gateway.go
       permission_http_gateway.go
       flag_flipt_gateway.go
@@ -355,15 +345,16 @@ func (g *FliptFlagGateway) UpdateFlag(ctx context.Context, key string, change Fl
 
 ### 5.1 構成要素
 
-| 要素 | 採用技術 | 役割 |
-|---|---|---|
-| Web Framework | Next.js 15 / Rails 8（並行） | UI・ルーティング |
-| HTTP Server | Echo or Gin（API のみバックエンド） | RESTful API |
-| ORM | GORM（Go）or ActiveRecord（Rails） | RDBMS アクセス |
-| Queue Client | BullMQ / OCI Queue SDK | 非同期ジョブ |
-| Auth SDK | Cognito SDK | JWT 検証 |
-| Flag Client | Flipt SDK / OpenFeature | Feature Flag |
-| Observability | OpenTelemetry + Prometheus | メトリクス・トレース |
+| 要素                      | 採用技術                            | 役割                       |
+| ------------------------- | ----------------------------------- | -------------------------- |
+| Web Framework             | Next.js 15 / Go /Rails 8（並行）    | UI・ルーティング           |
+| HTTP Server               | Echo or Gin（API のみバックエンド） | RESTful API                |
+| ORM                       | GORM（Go）or ActiveRecord（Rails）  | RDBMS アクセス             |
+| Queue Client              | BullMQ / OCI Queue SDK              | 非同期ジョブ               |
+| Auth SDK                  | Cognito SDK                         | JWT 検証                   |
+| Object Storage Management | Garage                              | オブジェクトストレージ管理 |
+| Flag Client               | Flipt SDK / OpenFeature             | Feature Flag               |
+| Observability             | OpenTelemetry + Prometheus          | メトリクス・トレース       |
 
 ### 5.2 エントリポイント
 
@@ -421,12 +412,12 @@ end
 
 ## 6. テスト戦略（レイヤ別）
 
-| レイヤ | テスト種別 | カバレッジ目標 |
-|---|---|---|
-| Entities | 純粋ユニットテスト（依存ゼロ） | 95% |
-| Use Cases | Mock Port での Interactor テスト | 90% |
-| Adapters | Docker Compose での統合テスト | 70% |
-| Frameworks | E2E（Cypress / Playwright） | 主要フロー 100% |
+| レイヤ     | テスト種別                       | カバレッジ目標  |
+| ---------- | -------------------------------- | --------------- |
+| Entities   | 純粋ユニットテスト（依存ゼロ）   | 95%             |
+| Use Cases  | Mock Port での Interactor テスト | 90%             |
+| Adapters   | Docker Compose での統合テスト    | 70%             |
+| Frameworks | E2E（Cypress / Playwright）      | 主要フロー 100% |
 
 ### 6.1 Entity テスト例
 

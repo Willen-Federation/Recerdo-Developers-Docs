@@ -15,12 +15,13 @@ Recerdo プラットフォームの **運用・監視・モデレーション・
 ### 主要責務
 
 1. **ユーザー・組織管理**: 検索、詳細表示、凍結、削除、権限変更
-2. **モデレーション**: 通報処理、投稿・アルバム・イベントの可視性操作、NG ワード管理
+2. **モデレーション**: 通報処理、投稿・アルバム・イベントの可視性操作、直接ファイルアクセスと設定変更、NG ワード管理
 3. **Feature Flag 管理 UI**: [Feature Flag Svc](feature-flag-system.md) の操作画面（Admin → Flipt 経由で更新）
 4. **キュー監視 UI**: [Queue Abstraction](queue-abstraction.md) のメトリクス・DLQ 再投入
 5. **監査ログビューア**: Audit Svc のログ検索・エクスポート
 6. **コマンドキュー**: 長時間実行・バッチ系の「コマンド」を Admin が発行 → 非同期 Worker が実行
 7. **システムヘルス**: 各マイクロサービスの死活、P95 レイテンシ、エラー率表示
+  
 
 ### 非責務（別サービス担当）
 
@@ -49,30 +50,29 @@ Key User Stories:
 
 ### 2.1 ドメインモデル
 
-| エンティティ | 説明 | 主要属性 |
-|---|---|---|
-| AdminUser | 管理者ユーザー（通常ユーザーとは分離） | admin_id (UUID), email, role_id, mfa_enabled, last_login_at |
-| AdminRole | 管理者ロール | role_id (UUID), name, description, scopes (array) |
-| AdminAction | 実行された管理者操作の監査記録 | action_id (UUID), admin_id, action_type, target_type, target_id, payload (JSON), result, executed_at |
-| ModerationCase | モデレーション案件 | case_id (UUID), reported_entity_type, reported_entity_id, reporter_ids (array), status (OPEN/RESOLVED/REJECTED), assigned_to, priority |
-| ModerationDecision | モデレーター判定 | decision_id (UUID), case_id, admin_id, verdict (REMOVE/WARN/KEEP), reason, decided_at |
-| AdminCommand | 非同期コマンド投入記録 | command_id (UUID), admin_id, command_type, params (JSON), status (QUEUED/RUNNING/COMPLETED/FAILED), enqueued_at, started_at, finished_at, result |
-| ApprovalRequest | 二段階承認要求 | request_id (UUID), requester_id, target_action, payload (JSON), approver_id, status (PENDING/APPROVED/REJECTED), expires_at |
-| ImpersonationSession | CS がユーザーに成り代わって調査するセッション | session_id (UUID), admin_id, target_user_id, reason, expires_at (max 1h), audit_ref |
+| エンティティ         | 説明                                          | 主要属性                                                                                                                                         |
+| -------------------- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| AdminUser            | 管理者ユーザー（通常ユーザーとは分離）        | admin_id (UUID), email, role_id, mfa_enabled, last_login_at                                                                                      |
+| AdminRole            | 管理者ロール                                  | role_id (UUID), name, description, scopes (array)                                                                                                |
+| AdminAction          | 実行された管理者操作の監査記録                | action_id (UUID), admin_id, action_type, target_type, target_id, payload (JSON), result, executed_at                                             |
+| ModerationCase       | モデレーション案件                            | case_id (UUID), reported_entity_type, reported_entity_id, reporter_ids (array), status (OPEN/RESOLVED/REJECTED), assigned_to, priority           |
+| ModerationDecision   | モデレーター判定                              | decision_id (UUID), case_id, admin_id, verdict (REMOVE/WARN/KEEP), reason, decided_at                                                            |
+| AdminCommand         | 非同期コマンド投入記録                        | command_id (UUID), admin_id, command_type, params (JSON), status (QUEUED/RUNNING/COMPLETED/FAILED), enqueued_at, started_at, finished_at, result |
+| ApprovalRequest      | 二段階承認要求                                | request_id (UUID), requester_id, target_action, payload (JSON), approver_id, status (PENDING/APPROVED/REJECTED), expires_at                      |
+| ImpersonationSession | CS がユーザーに成り代わって調査するセッション | session_id (UUID), admin_id, target_user_id, reason, expires_at (max 1h), audit_ref                                                              |
 
 ### 2.2 値オブジェクト
 
-| 値オブジェクト | 説明 | バリデーション |
-|---|---|---|
-| AdminScope | 操作権限スコープ | `domain:action` 形式（例: `users:suspend`, `flags:write`） |
-| Verdict | モデレーション判定結果 | REMOVE / WARN / KEEP / ESCALATE |
-| CommandType | 非同期コマンド種別 | enum: MIGRATE_USER / BULK_EMAIL / EXPORT_DATA / FLAG_ROLLOUT 等 |
-| ImpersonationReason | 成り代わり理由 | 最低 30 文字、フリーテキスト必須 |
+| 値オブジェクト      | 説明                   | バリデーション                                                  |
+| ------------------- | ---------------------- | --------------------------------------------------------------- |
+| AdminScope          | 操作権限スコープ       | `domain:action` 形式（例: `users:suspend`, `flags:write`）      |
+| Verdict             | モデレーション判定結果 | REMOVE / WARN / KEEP / ESCALATE                                 |
+| CommandType         | 非同期コマンド種別     | enum: MIGRATE_USER / BULK_EMAIL / EXPORT_DATA / FLAG_ROLLOUT 等 |
+| ImpersonationReason | 成り代わり理由         | 最低 30 文字、フリーテキスト必須                                |
 
 ### 2.3 ドメインルール / 不変条件
 
 - `AdminUser` は Cognito の **別ユーザープール**（`recerdo-admin-pool`）で管理し、通常ユーザープールと完全分離する
-- **MFA は必須**（`mfa_enabled = false` のログインは拒否）
 - 権限変更・凍結・削除・フラグ書き込みなど **高リスクアクションは二段階承認必須**（`ApprovalRequest` を経由）
 - 全 `AdminAction` は **同期的** に Audit Svc に送信し、DB コミットと同一トランザクション内で成功を保証
 - `ImpersonationSession` は **最大 1 時間**、対象ユーザーの全 PII アクセスを Audit に記録
@@ -80,16 +80,16 @@ Key User Stories:
 
 ### 2.4 ドメインイベント
 
-| イベント | トリガー | 主要ペイロード |
-|---|---|---|
-| AdminActionExecuted | 全管理者操作完了時 | admin_id, action_type, target, result |
-| ModerationCaseOpened | 通報キューに追加 | case_id, entity, reporter_count |
-| ModerationDecided | 判定完了 | case_id, verdict, reason |
-| AdminCommandEnqueued | 非同期コマンド投入 | command_id, type, params_hash |
-| AdminCommandCompleted | 非同期コマンド完了 | command_id, status, duration_ms |
-| ApprovalRequested | 二段階承認要求 | request_id, target_action, requester |
-| ApprovalGranted | 承認完了 | request_id, approver |
-| ImpersonationStarted | 成り代わり開始 | admin_id, target_user_id, reason |
+| イベント              | トリガー           | 主要ペイロード                        |
+| --------------------- | ------------------ | ------------------------------------- |
+| AdminActionExecuted   | 全管理者操作完了時 | admin_id, action_type, target, result |
+| ModerationCaseOpened  | 通報キューに追加   | case_id, entity, reporter_count       |
+| ModerationDecided     | 判定完了           | case_id, verdict, reason              |
+| AdminCommandEnqueued  | 非同期コマンド投入 | command_id, type, params_hash         |
+| AdminCommandCompleted | 非同期コマンド完了 | command_id, status, duration_ms       |
+| ApprovalRequested     | 二段階承認要求     | request_id, target_action, requester  |
+| ApprovalGranted       | 承認完了           | request_id, approver                  |
+| ImpersonationStarted  | 成り代わり開始     | admin_id, target_user_id, reason      |
 
 ---
 
@@ -97,24 +97,24 @@ Key User Stories:
 
 ### 3.1 ユースケース一覧
 
-| ユースケース | 入力 | 出力 | 説明 |
-|---|---|---|---|
-| SearchUsers | SearchUsersInput{query, filters, pagination} | SearchUsersOutput{users[], total} | 管理対象ユーザーの検索 |
-| SuspendUser | SuspendUserInput{user_id, reason, duration_days} | SuspendUserOutput{case_id} | ユーザー凍結（要承認） |
-| RestoreUser | RestoreUserInput{user_id, reason} | RestoreUserOutput | 凍結解除 |
-| MergeUsers | MergeUsersInput{primary_id, secondary_id} | MergeUsersOutput{command_id} | 重複アカウント統合（非同期） |
-| ListModerationCases | ListModerationCasesInput{status, priority, assignee} | ListModerationCasesOutput{cases[]} | 案件一覧 |
-| DecideModerationCase | DecideModerationCaseInput{case_id, verdict, reason} | DecideModerationCaseOutput | 判定登録 |
-| UpdateFeatureFlag | UpdateFeatureFlagInput{flag_key, changes, request_id?} | UpdateFeatureFlagOutput{flipt_version} | Flag 変更（要承認） |
-| TriggerKillSwitch | TriggerKillSwitchInput{flag_key, reason} | TriggerKillSwitchOutput | 緊急停止（承認不要・監査必須） |
-| ViewQueueDepth | ViewQueueDepthInput{topic?} | ViewQueueDepthOutput{depths[]} | キュー滞留状況 |
-| RedriveDLQ | RedriveDLQInput{topic, job_ids[]} | RedriveDLQOutput{command_id} | DLQ 再投入 |
-| EnqueueAdminCommand | EnqueueAdminCommandInput{type, params} | EnqueueAdminCommandOutput{command_id} | 非同期コマンド投入 |
-| GetAdminCommandStatus | GetAdminCommandStatusInput{command_id} | GetAdminCommandStatusOutput{status, result, logs} | 進捗取得 |
-| StartImpersonation | StartImpersonationInput{target_user_id, reason, ticket_ref} | StartImpersonationOutput{session_token, expires_at} | CS 成り代わり開始 |
-| ExportAuditLog | ExportAuditLogInput{filter, format} | ExportAuditLogOutput{command_id} | 監査ログエクスポート（非同期） |
-| RequestApproval | RequestApprovalInput{action, payload, approvers} | RequestApprovalOutput{request_id} | 二段階承認起票 |
-| GrantApproval | GrantApprovalInput{request_id, comment} | GrantApprovalOutput | 承認実行 |
+| ユースケース          | 入力                                                        | 出力                                                | 説明                           |
+| --------------------- | ----------------------------------------------------------- | --------------------------------------------------- | ------------------------------ |
+| SearchUsers           | SearchUsersInput{query, filters, pagination}                | SearchUsersOutput{users[], total}                   | 管理対象ユーザーの検索         |
+| SuspendUser           | SuspendUserInput{user_id, reason, duration_days}            | SuspendUserOutput{case_id}                          | ユーザー凍結（要承認）         |
+| RestoreUser           | RestoreUserInput{user_id, reason}                           | RestoreUserOutput                                   | 凍結解除                       |
+| MergeUsers            | MergeUsersInput{primary_id, secondary_id}                   | MergeUsersOutput{command_id}                        | 重複アカウント統合（非同期）   |
+| ListModerationCases   | ListModerationCasesInput{status, priority, assignee}        | ListModerationCasesOutput{cases[]}                  | 案件一覧                       |
+| DecideModerationCase  | DecideModerationCaseInput{case_id, verdict, reason}         | DecideModerationCaseOutput                          | 判定登録                       |
+| UpdateFeatureFlag     | UpdateFeatureFlagInput{flag_key, changes, request_id?}      | UpdateFeatureFlagOutput{flipt_version}              | Flag 変更（要承認）            |
+| TriggerKillSwitch     | TriggerKillSwitchInput{flag_key, reason}                    | TriggerKillSwitchOutput                             | 緊急停止（承認不要・監査必須） |
+| ViewQueueDepth        | ViewQueueDepthInput{topic?}                                 | ViewQueueDepthOutput{depths[]}                      | キュー滞留状況                 |
+| RedriveDLQ            | RedriveDLQInput{topic, job_ids[]}                           | RedriveDLQOutput{command_id}                        | DLQ 再投入                     |
+| EnqueueAdminCommand   | EnqueueAdminCommandInput{type, params}                      | EnqueueAdminCommandOutput{command_id}               | 非同期コマンド投入             |
+| GetAdminCommandStatus | GetAdminCommandStatusInput{command_id}                      | GetAdminCommandStatusOutput{status, result, logs}   | 進捗取得                       |
+| StartImpersonation    | StartImpersonationInput{target_user_id, reason, ticket_ref} | StartImpersonationOutput{session_token, expires_at} | CS 成り代わり開始              |
+| ExportAuditLog        | ExportAuditLogInput{filter, format}                         | ExportAuditLogOutput{command_id}                    | 監査ログエクスポート（非同期） |
+| RequestApproval       | RequestApprovalInput{action, payload, approvers}            | RequestApprovalOutput{request_id}                   | 二段階承認起票                 |
+| GrantApproval         | GrantApprovalInput{request_id, comment}                     | GrantApprovalOutput                                 | 承認実行                       |
 
 ### 3.2 横断制約（Invariants）
 
@@ -128,23 +128,23 @@ Key User Stories:
 
 ### 4.1 API 仕様（抜粋）
 
-| メソッド | パス | 用途 | スコープ |
-|---|---|---|---|
-| GET | `/admin/v1/users` | ユーザー検索 | `users:read` |
-| POST | `/admin/v1/users/:id/suspend` | 凍結 | `users:suspend` |
-| POST | `/admin/v1/users/:id/restore` | 解除 | `users:suspend` |
-| GET | `/admin/v1/moderation/cases` | 案件一覧 | `moderation:read` |
-| POST | `/admin/v1/moderation/cases/:id/decide` | 判定 | `moderation:write` |
-| GET | `/admin/v1/flags` | Flag 一覧 | `flags:read` |
-| PATCH | `/admin/v1/flags/:key` | Flag 更新 | `flags:write` |
-| POST | `/admin/v1/flags/:key/killswitch` | Kill Switch | `flags:killswitch` |
-| GET | `/admin/v1/queues` | キュー状況 | `infra:read` |
-| POST | `/admin/v1/queues/:topic/redrive` | DLQ 再投入 | `infra:write` |
-| POST | `/admin/v1/commands` | コマンド投入 | `commands:execute` |
-| GET | `/admin/v1/commands/:id` | コマンド状況 | `commands:read` |
-| POST | `/admin/v1/approvals` | 承認要求作成 | 自動 |
-| POST | `/admin/v1/approvals/:id/grant` | 承認 | `approvals:grant` |
-| POST | `/admin/v1/impersonate` | 成り代わり | `support:impersonate` |
+| メソッド | パス                                    | 用途         | スコープ              |
+| -------- | --------------------------------------- | ------------ | --------------------- |
+| GET      | `/admin/v1/users`                       | ユーザー検索 | `users:read`          |
+| POST     | `/admin/v1/users/:id/suspend`           | 凍結         | `users:suspend`       |
+| POST     | `/admin/v1/users/:id/restore`           | 解除         | `users:suspend`       |
+| GET      | `/admin/v1/moderation/cases`            | 案件一覧     | `moderation:read`     |
+| POST     | `/admin/v1/moderation/cases/:id/decide` | 判定         | `moderation:write`    |
+| GET      | `/admin/v1/flags`                       | Flag 一覧    | `flags:read`          |
+| PATCH    | `/admin/v1/flags/:key`                  | Flag 更新    | `flags:write`         |
+| POST     | `/admin/v1/flags/:key/killswitch`       | Kill Switch  | `flags:killswitch`    |
+| GET      | `/admin/v1/queues`                      | キュー状況   | `infra:read`          |
+| POST     | `/admin/v1/queues/:topic/redrive`       | DLQ 再投入   | `infra:write`         |
+| POST     | `/admin/v1/commands`                    | コマンド投入 | `commands:execute`    |
+| GET      | `/admin/v1/commands/:id`                | コマンド状況 | `commands:read`       |
+| POST     | `/admin/v1/approvals`                   | 承認要求作成 | 自動                  |
+| POST     | `/admin/v1/approvals/:id/grant`         | 承認         | `approvals:grant`     |
+| POST     | `/admin/v1/impersonate`                 | 成り代わり   | `support:impersonate` |
 
 ### 4.2 フロントエンド（UI）
 
@@ -182,14 +182,14 @@ Key User Stories:
 
 ## 5. インフラ・デプロイ
 
-| 項目 | Beta 構成 | 本番構成 |
-|---|---|---|
-| ランタイム | Docker on VPS（Next.js: Node.js 20、Rails: Ruby 3.3） | OCI Container Instances |
-| DB | PostgreSQL（共有・`admin_*` スキーマ分離） | OCI Autonomous DB（専用 schema） |
-| キュー | Redis + BullMQ（コマンド用は `admin.command` トピック） | OCI Queue Service |
-| 認証 | Cognito Admin Pool | 同左（Pool 別） |
-| 監査ログ | Audit Svc へ同期送信 | 同左 |
-| バックアップ | VPS 日次スナップショット + レンタルサーバー | OCI 自動バックアップ 7 日保持 |
+| 項目         | Beta 構成                                               | 本番構成                         |
+| ------------ | ------------------------------------------------------- | -------------------------------- |
+| ランタイム   | Docker on VPS（Next.js: Node.js 20、Rails: Ruby 3.3）   | OCI Container Instances          |
+| DB           | MySQL（共有・`admin_*` スキーマ分離）                   | OCI Autonomous DB（専用 schema） |
+| キュー       | Redis + BullMQ（コマンド用は `admin.command` トピック） | OCI Queue Service                |
+| 認証         | Cognito Admin Pool                                      | 同左（Pool 別）                  |
+| 監査ログ     | Audit Svc へ同期送信                                    | 同左                             |
+| バックアップ | VPS 日次スナップショット + レンタルサーバー             | OCI 自動バックアップ 7 日保持    |
 
 ### 5.1 スケーリング方針
 
@@ -216,15 +216,15 @@ flowchart LR
 
 ### 6.1 ロール定義（初期セット）
 
-| ロール | 説明 | 主なスコープ |
-|---|---|---|
-| `super-admin` | 全権（設立メンバーのみ） | `*` |
-| `sre` | インフラ・Flag・Queue 操作 | `infra:*`, `flags:write`, `commands:execute` |
-| `moderator` | モデレーション専任 | `moderation:*`, `users:read`, `users:suspend` |
-| `cs-agent` | カスタマーサポート | `users:read`, `users:suspend`, `support:impersonate` |
-| `finance` | 請求・経理・KPI | `billing:read`, `analytics:read` |
-| `readonly` | 監査・オブザーバー | `*:read` |
-| `approver` | 承認専任（高リスク操作） | `approvals:grant` |
+| ロール        | 説明                       | 主なスコープ                                         |
+| ------------- | -------------------------- | ---------------------------------------------------- |
+| `super-admin` | 全権（設立メンバーのみ）   | `*`                                                  |
+| `sre`         | インフラ・Flag・Queue 操作 | `infra:*`, `flags:write`, `commands:execute`         |
+| `moderator`   | モデレーション専任         | `moderation:*`, `users:read`, `users:suspend`        |
+| `cs-agent`    | カスタマーサポート         | `users:read`, `users:suspend`, `support:impersonate` |
+| `finance`     | 請求・経理・KPI            | `billing:read`, `analytics:read`                     |
+| `readonly`    | 監査・オブザーバー         | `*:read`                                             |
+| `approver`    | 承認専任（高リスク操作）   | `approvals:grant`                                    |
 
 ### 6.2 二段階承認が必要な操作
 
@@ -265,13 +265,13 @@ flowchart LR
 
 ### 8.1 メトリクス
 
-| メトリクス | 説明 |
-|---|---|
-| `admin_action_total{action_type,result}` | 操作成功/失敗数 |
-| `admin_approval_pending{action_type}` | 承認待ち件数 |
-| `admin_command_duration_seconds{type}` | コマンド実行時間 |
-| `admin_impersonation_active` | 現在の成り代わりセッション数 |
-| `admin_rbac_denial_total{role,scope}` | 権限不足拒否数（攻撃兆候） |
+| メトリクス                               | 説明                         |
+| ---------------------------------------- | ---------------------------- |
+| `admin_action_total{action_type,result}` | 操作成功/失敗数              |
+| `admin_approval_pending{action_type}`    | 承認待ち件数                 |
+| `admin_command_duration_seconds{type}`   | コマンド実行時間             |
+| `admin_impersonation_active`             | 現在の成り代わりセッション数 |
+| `admin_rbac_denial_total{role,scope}`    | 権限不足拒否数（攻撃兆候）   |
 
 ### 8.2 アラート
 

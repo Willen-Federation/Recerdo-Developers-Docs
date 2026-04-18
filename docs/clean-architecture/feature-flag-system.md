@@ -1,12 +1,12 @@
 # クリーンアーキテクチャ設計書 — Feature Flag 管理システム
 
-| 項目 | 値 |
-|------|-----|
+| 項目                      | 値                                              |
+| ------------------------- | ----------------------------------------------- |
 | **モジュール/サービス名** | Feature Flag System (recuerdo-feature-flag-svc) |
-| **作成者** | Claude (AI) |
-| **作成日** | 2026-04-19 |
-| **ステータス** | 承認済み (Approved) |
-| **バージョン** | 1.0 |
+| **作成者**                | Claude (AI)                                     |
+| **作成日**                | 2026-04-19                                      |
+| **ステータス**            | 承認済み (Approved)                             |
+| **バージョン**            | 1.0                                             |
 
 > Notion レビューコメント: 「この内容で設計を実施したいと思います。」(2026-04-18)
 
@@ -39,14 +39,14 @@ Feature Flag System は Recerdo プラットフォーム全体の機能フラグ
 ```
 ┌────────────────────────────────────────────────────────────┐
 │  Frameworks & Drivers                                       │
-│  Gin HTTP, PostgreSQL, Redis, Flipt gRPC/REST, CloudWatch  │
+│  Gin HTTP, MySQL, Redis, Flipt gRPC/REST, CloudWatch  │
 └────────────────────────────────────────────────────────────┘
                           ▲
                           │ (依存)
 ┌────────────────────────────────────────────────────────────┐
 │  Interface Adapters                                         │
 │  HTTP Controllers (Admin API), FliptAdapter,               │
-│  PostgresRepository, RedisCache, CloudWatchAlarmConsumer   │
+│  MySQLRepository, RedisCache, CloudWatchAlarmConsumer   │
 └────────────────────────────────────────────────────────────┘
                           ▲
                           │ (依存)
@@ -74,23 +74,23 @@ Feature Flag System は Recerdo プラットフォーム全体の機能フラグ
 
 ### 3.1 ドメインモデル
 
-| エンティティ名 | 説明 | 主要フィールド |
-|---|---|---|
-| FeatureFlag | フラグ定義 | flagKey (string), name, description, enabled (bool), failMode (OPEN/CLOSE), createdAt, updatedAt |
-| FlagRule | フラグ適用ルール | ruleId (UUID), flagKey, ruleType (PERCENTAGE/SEGMENT/IP_RANGE/ALWAYS), ruleConfig (JSON), priority (int) |
-| FlagSegment | ユーザーセグメント | segmentKey, description, conditions (JSON) |
-| FlagAuditLog | 変更履歴 | logId (UUID), flagKey, changedBy, oldValue, newValue, changedAt |
-| FlagEvaluation | 評価ログ | evalId (UUID), flagKey, entityId, result (bool), ruleMatched, evaluatedAt |
+| エンティティ名 | 説明               | 主要フィールド                                                                                           |
+| -------------- | ------------------ | -------------------------------------------------------------------------------------------------------- |
+| FeatureFlag    | フラグ定義         | flagKey (string), name, description, enabled (bool), failMode (OPEN/CLOSE), createdAt, updatedAt         |
+| FlagRule       | フラグ適用ルール   | ruleId (UUID), flagKey, ruleType (PERCENTAGE/SEGMENT/IP_RANGE/ALWAYS), ruleConfig (JSON), priority (int) |
+| FlagSegment    | ユーザーセグメント | segmentKey, description, conditions (JSON)                                                               |
+| FlagAuditLog   | 変更履歴           | logId (UUID), flagKey, changedBy, oldValue, newValue, changedAt                                          |
+| FlagEvaluation | 評価ログ           | evalId (UUID), flagKey, entityId, result (bool), ruleMatched, evaluatedAt                                |
 
 ### 3.2 値オブジェクト
 
-| 値オブジェクト | 説明 | 不変性 |
-|---|---|---|
-| FlagKey | フラグ識別子（snake_case, max 128char） | Yes |
-| EvaluationContext | 評価コンテキスト（entityId, orgId, ipAddress, attributes） | Yes |
-| RolloutPercentage | ロールアウト割合（0〜100） | Yes |
-| IPRange | CIDR表記のIP範囲 | Yes |
-| FailMode | Flipt接続失敗時の振る舞い（OPEN=true返却, CLOSE=false返却） | Yes |
+| 値オブジェクト    | 説明                                                        | 不変性 |
+| ----------------- | ----------------------------------------------------------- | ------ |
+| FlagKey           | フラグ識別子（snake_case, max 128char）                     | Yes    |
+| EvaluationContext | 評価コンテキスト（entityId, orgId, ipAddress, attributes）  | Yes    |
+| RolloutPercentage | ロールアウト割合（0〜100）                                  | Yes    |
+| IPRange           | CIDR表記のIP範囲                                            | Yes    |
+| FailMode          | Flipt接続失敗時の振る舞い（OPEN=true返却, CLOSE=false返却） | Yes    |
 
 ### 3.3 ドメインルール / 不変条件
 
@@ -102,12 +102,12 @@ Feature Flag System は Recerdo プラットフォーム全体の機能フラグ
 
 ### 3.4 ドメインイベント
 
-| イベント名 | 発火条件 | ペイロード |
-|---|---|---|
-| flag.enabled | フラグがONに変更 | flagKey, changedBy, changedAt |
-| flag.disabled | フラグがOFFに変更（Kill Switch含む） | flagKey, reason (MANUAL/AUTO_KILLSWITCH), changedAt |
-| flag.rule_updated | ルールが変更 | flagKey, ruleId, newConfig |
-| flag.kill_switch_triggered | エラー率閾値超過で自動停止 | flagKey, errorRate, threshold, triggeredAt |
+| イベント名                 | 発火条件                             | ペイロード                                          |
+| -------------------------- | ------------------------------------ | --------------------------------------------------- |
+| flag.enabled               | フラグがONに変更                     | flagKey, changedBy, changedAt                       |
+| flag.disabled              | フラグがOFFに変更（Kill Switch含む） | flagKey, reason (MANUAL/AUTO_KILLSWITCH), changedAt |
+| flag.rule_updated          | ルールが変更                         | flagKey, ruleId, newConfig                          |
+| flag.kill_switch_triggered | エラー率閾値超過で自動停止           | flagKey, errorRate, threshold, triggeredAt          |
 
 ### 3.5 エンティティ定義
 
@@ -168,16 +168,16 @@ const (
 
 ### 4.1 ユースケース一覧
 
-| ユースケース | アクター | 説明 | 優先度 |
-|---|---|---|---|
-| EvaluateFlag | Microservice | フラグをコンテキストに基づき評価 | HIGH |
-| CreateFlag | Admin | フラグ新規作成 | HIGH |
-| UpdateFlagStatus | Admin | ON/OFF切り替え | HIGH |
-| TriggerKillSwitch | Admin / CloudWatch Lambda | Kill Switch発動 | HIGH |
-| SetRolloutRule | Admin | Percentage Rollout設定 | HIGH |
-| SetIPRestriction | Admin | IP制限設定 | MEDIUM |
-| GetFlagStatus | Admin | フラグ詳細・評価統計取得 | MEDIUM |
-| ListFlags | Admin | フラグ一覧取得 | MEDIUM |
+| ユースケース      | アクター                  | 説明                             | 優先度 |
+| ----------------- | ------------------------- | -------------------------------- | ------ |
+| EvaluateFlag      | Microservice              | フラグをコンテキストに基づき評価 | HIGH   |
+| CreateFlag        | Admin                     | フラグ新規作成                   | HIGH   |
+| UpdateFlagStatus  | Admin                     | ON/OFF切り替え                   | HIGH   |
+| TriggerKillSwitch | Admin / CloudWatch Lambda | Kill Switch発動                  | HIGH   |
+| SetRolloutRule    | Admin                     | Percentage Rollout設定           | HIGH   |
+| SetIPRestriction  | Admin                     | IP制限設定                       | MEDIUM |
+| GetFlagStatus     | Admin                     | フラグ詳細・評価統計取得         | MEDIUM |
+| ListFlags         | Admin                     | フラグ一覧取得                   | MEDIUM |
 
 ### 4.2 ユースケース定義
 
@@ -447,7 +447,7 @@ func TestEvaluateFlag_PercentageRollout_Deterministic(t *testing.T) {
 ## 7. デプロイ・運用
 
 - **Flipt サーバー**: ECS Fargate（256MB / 0.25vCPU、最小構成）
-- **データベース**: PostgreSQL（他マイクロサービスと共有クラスター）
+- **データベース**: MySQL（他マイクロサービスと共有クラスター）
 - **キャッシュ**: Redis（既存クラスター利用）
 - **モニタリング**: Flipt 内蔵 Prometheus → CloudWatch
 - **Kill Switch 自動化**: CloudWatch Alarm → Lambda → `POST /api/flags/{flag_key}/kill-switch`

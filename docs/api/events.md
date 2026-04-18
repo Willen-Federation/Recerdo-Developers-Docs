@@ -18,7 +18,8 @@
       "description": "10年ぶりの再会イベント",
       "start_at": "2026-07-01T12:00:00Z",
       "end_at": "2026-07-01T18:00:00Z",
-      "location": "渋谷区文化センター"
+      "location_name": "渋谷区文化センター",
+      "location_geo": [35.65576342201527, 139.70006821534054],
     }
     ```
 
@@ -44,11 +45,11 @@
 
 **クエリパラメータ**
 
-| パラメータ | 型 | 説明 |
-|---------|---|------|
-| `status` | string | `draft` / `active` / `archived` |
-| `limit` | int | 取得件数（デフォルト20） |
-| `cursor` | string | ページネーションカーソル |
+| パラメータ | 型     | 説明                            |
+| ---------- | ------ | ------------------------------- |
+| `status`   | string | `draft` / `active` / `archived` |
+| `limit`    | int    | 取得件数（デフォルト20）        |
+| `cursor`   | string | ページネーションカーソル        |
 
 ---
 
@@ -61,18 +62,49 @@
 ### PUT `/api/orgs/{org_id}/events/{event_id}`
 
 イベント情報を更新します。
+更新する内容のみをリクエストに含めます。
+
+=== "Request"
+
+    ```json
+    {
+      "title": "2026年 同窓会",
+      "description": "10年ぶりの再会イベント",
+      "start_at": "2026-07-01T12:00:00Z",
+      "end_at": "2026-07-01T18:00:00Z",
+      "location_name": "渋谷区文化センター",
+      "location_geo": [35.65576342201527, 139.70006821534054],
+    }
+    ```
 
 ---
 
 ### POST `/api/orgs/{org_id}/events/{event_id}/activate`
 
-イベントをアクティブ化します。招待メールが送信されます。
+イベントをアクティブ化します。
+招待通知が送信されます。
+
+##### TODO
+  - [ ] 通知サービスに接続する。
+  - [ ] 通知情報やHTMLなどの表示内容・コンテンツを設定できるようにする。
+    * 招待通知の方法
+      * メールアドレスへのメール通知
+      * アプリケーションクライアントへのプッシュ通知
+      * Webhockによる通知
+      * その他Coreサービスで定める連携通知方法
+
 
 ---
 
 ### POST `/api/orgs/{org_id}/events/{event_id}/archive`
 
 イベントをアーカイブします。
+アーカイブにすると、データを編集することができなくなります。
+アクセス権限者による操作（復元・表示・ダウンロードなど）は引き続きされますが、アーカイブポリシーによってデータが処理されます。
+
+##### TODO
+  - [ ] アーカイブポリシーについては、別途検討すること。
+  - [ ] アーカイブポリシーに基づいてストレージ等の処理などビジネスロジックを作成すること。
 
 ---
 
@@ -82,11 +114,17 @@
 
 メンバーをイベントに招待します。
 
+##### TODO
+  - [ ] 招待識別に利用するコードについては柔軟性を持たせる
+
+
 === "Request"
 
     ```json
     {
-      "email": "friend@example.com",
+      "email": "friend@example.com",  ## Optional if other user  contact id is filled
+      "phone_number": "+819012345678", ### Optional if other user  contact id is filled
+      "uuid": "hsajdhiwoefhlfhlk", ## Optional if other user  contact id is filled
       "message": "ぜひ参加してください！"
     }
     ```
@@ -107,7 +145,8 @@
 
     ```json
     {
-      "response": "accept"
+      "response": "accept",
+      "message": "ご招待ありがとうございます！"
     }
     ```
 
@@ -141,24 +180,47 @@
 
 ---
 
-## リアクション
+## コメント
 
-### POST `/api/orgs/{org_id}/events/{event_id}/reactions`
+##### TODO
+  - [ ] データの論理削除（送信取消・管理者権限削除など）の対応項目について検討・ポリシー策定
+  - [ ] APIにおける構造（送信内容やデータ）については要検討
+  - [ ] コメントの対応項目について検討
+      > action_destination :　[ "meta","comment","media"]
 
-イベントにリアクションを追加します。
+### POST `/api/orgs/{org_id}/events/{event_id}/{action_destination}/{action_id}/comments`
 
-### DELETE `/api/orgs/{org_id}/events/{event_id}/reactions/{reaction_id}`
+コメントを投稿します。
 
-リアクションを削除します。
+### GET `/api/orgs/{org_id}/events/{event_id}/{action_destination}/{action_id}/comments/{comment_id}`
+
+コメント一覧を取得します。
+
+### DELETE `/api/orgs/{org_id}/events/{event_id}/{action_destination}/{action_id}/comments/{comment_id}`
+
+コメントを論理削除します。
 
 ---
 
-## コメント
+## リアクション
 
-### POST `/api/orgs/{org_id}/events/{event_id}/comments`
+##### TODO
+  - [ ] 具体的なリアクション項目について検討
+  - [ ] EmojiやStickerを事前用意すると思われるが、どういう設定にするかを要検討
+  - [ ] APIにおける構造（送信内容やデータ）については要検討
+  - [ ] リアクションの対応項目について検討
+      > action_destination :　[ "meta","comment","message","media"]
 
-イベントにコメントを投稿します。
 
-### GET `/api/orgs/{org_id}/events/{event_id}/comments`
 
-コメント一覧を取得します。
+
+### POST `/api/orgs/{org_id}/events/{event_id}/reactions/{action_destination}`
+
+各種アクションに対してリアクションを追加します。
+
+### DELETE `/api/orgs/{org_id}/events/{event_id}/reactions/{action_destination}/{reaction_id}`
+
+各種アクションに対してリアクションを削除します。
+
+---
+

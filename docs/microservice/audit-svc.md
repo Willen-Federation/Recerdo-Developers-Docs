@@ -26,29 +26,29 @@ Key User Stories:
 
 ### ドメインモデル
 
-| エンティティ | 説明 | 主要属性 |
-| --- | --- | --- |
-| AuditEntry | 監査対象の操作1件を記録する不変なログエントリ | entry_id (UUID), actor_id, actor_type, action, resource_type, resource_id, timestamp, result (SUCCESS/FAILURE), reason?, ip_address, user_agent, metadata (JSON), created_at (immutable), archived_at? |
-| RetentionPolicy | 監査ログの保管期間と削除方針を定義 | policy_id, resource_type, action, retention_days (e.g. 2555 = 7年), archive_after_days (730 = 2年後S3へ), is_gdpr_sensitive (true=GDPRデータ削除対象), created_at, updated_at |
-| ArchivalJob | 古い監査ログをS3へ移行するジョブ | job_id, scheduled_at, started_at, completed_at, status (PENDING/RUNNING/COMPLETED/FAILED), record_count, s3_location, error_message? |
-| GDPRAnonymization | GDPR削除要請に対するユーザーデータの匿名化処理履歴 | anonymization_id, user_id, resource_ids[], anonymized_at, reason (FORGETTING_RIGHT/DATA_LOSS), operator_id, status (QUEUED/PROCESSING/COMPLETED/FAILED) |
+| エンティティ      | 説明                                               | 主要属性                                                                                                                                                                                               |
+| ----------------- | -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| AuditEntry        | 監査対象の操作1件を記録する不変なログエントリ      | entry_id (UUID), actor_id, actor_type, action, resource_type, resource_id, timestamp, result (SUCCESS/FAILURE), reason?, ip_address, user_agent, metadata (JSON), created_at (immutable), archived_at? |
+| RetentionPolicy   | 監査ログの保管期間と削除方針を定義                 | policy_id, resource_type, action, retention_days (e.g. 2555 = 7年), archive_after_days (730 = 2年後S3へ), is_gdpr_sensitive (true=GDPRデータ削除対象), created_at, updated_at                          |
+| ArchivalJob       | 古い監査ログをS3へ移行するジョブ                   | job_id, scheduled_at, started_at, completed_at, status (PENDING/RUNNING/COMPLETED/FAILED), record_count, s3_location, error_message?                                                                   |
+| GDPRAnonymization | GDPR削除要請に対するユーザーデータの匿名化処理履歴 | anonymization_id, user_id, resource_ids[], anonymized_at, reason (FORGETTING_RIGHT/DATA_LOSS), operator_id, status (QUEUED/PROCESSING/COMPLETED/FAILED)                                                |
 
 ### 値オブジェクト
 
-| 値オブジェクト | 説明 | バリデーションルール |
-| --- | --- | --- |
-| AuditAction | 監査対象操作の種別 | 値: READ / WRITE / DELETE / LOGIN / LOGOUT / PERMISSION_CHECK / ADMIN_ACTION。ドメインの主要な操作カテゴリに限定 |
-| ResourceType | 監査対象リソースの種別 | 値: USER / ORG / MEDIA / ALBUM / EVENT / MESSAGE / ROLE / INTEGRATION。新規リソースタイプは設計変更が必要 |
-| ActorType | 操作者の種別 | 値: USER (エンドユーザー) / SERVICE (マイクロサービス) / SYSTEM (内部スケジューラ)。認証方式の区別に使用 |
-| AuditResult | 操作の成功・失敗状態 | 値: SUCCESS / FAILURE。失敗時は reason フィールドで詳細を記録 |
-| PII (Personally Identifiable Information) | 個人特定情報の匿名化値 | 元データのSHA256ハッシュ。復号不可。GDPR削除時にuser_name/email/phone等を置き換える |
-| QueryFilter | 監査ログ検索クエリの条件オブジェクト | actor_id, resource_type, action, date_range (from_ts/to_ts), result?。全フィールドOPT オプショナル |
+| 値オブジェクト                            | 説明                                 | バリデーションルール                                                                                             |
+| ----------------------------------------- | ------------------------------------ | ---------------------------------------------------------------------------------------------------------------- |
+| AuditAction                               | 監査対象操作の種別                   | 値: READ / WRITE / DELETE / LOGIN / LOGOUT / PERMISSION_CHECK / ADMIN_ACTION。ドメインの主要な操作カテゴリに限定 |
+| ResourceType                              | 監査対象リソースの種別               | 値: USER / ORG / MEDIA / ALBUM / EVENT / MESSAGE / ROLE / INTEGRATION。新規リソースタイプは設計変更が必要        |
+| ActorType                                 | 操作者の種別                         | 値: USER (エンドユーザー) / SERVICE (マイクロサービス) / SYSTEM (内部スケジューラ)。認証方式の区別に使用         |
+| AuditResult                               | 操作の成功・失敗状態                 | 値: SUCCESS / FAILURE。失敗時は reason フィールドで詳細を記録                                                    |
+| PII (Personally Identifiable Information) | 個人特定情報の匿名化値               | 元データのSHA256ハッシュ。復号不可。GDPR削除時にuser_name/email/phone等を置き換える                              |
+| QueryFilter                               | 監査ログ検索クエリの条件オブジェクト | actor_id, resource_type, action, date_range (from_ts/to_ts), result?。全フィールドOPT オプショナル               |
 
 ### ドメインルール / 不変条件
 
 - AuditEntryは一度記録されたら更新・削除されてはならない（Append-Only）
 - 全AuditEntryはactor_idを必須とする（無人操作は禁止）
-- archived_at != null のAuditEntryはS3に移行済みで、ホットストレージ（PostgreSQL）に存在しない
+- archived_at != null のAuditEntryはS3に移行済みで、ホットストレージ（MySQL）に存在しない
 - GDPRAnonymizationが COMPLETED 状態のユーザーのAuditEntryは、user_name/email/phone等をPII（ハッシュ）に置き換える
 - RetentionPolicyで指定された retention_days を超えたログは、S3への自動アーカイブ対象となる（削除ではなくアーカイブ）
 - GDPRデータ削除対応時も、AuditEntry自体は物理削除しない。代わりに個人情報だけを不可逆的に匿名化する
@@ -56,13 +56,13 @@ Key User Stories:
 
 ### ドメインイベント
 
-| イベント | トリガー | 主要ペイロード |
-| --- | --- | --- |
-| AuditEntryRecorded | SQS メッセージより新規AuditEntry作成時 | entry_id, actor_id, action, resource_type, resource_id, timestamp, result |
-| ArchivalCompleted | ArchivalJob完了時 | job_id, archived_record_count, s3_location, completion_timestamp |
-| GDPRAnonymizationRequested | GDPR個人削除要請受信時 | anonymization_id, user_id, resource_ids, reason |
-| GDPRAnonymizationCompleted | ユーザー情報の匿名化完了時 | anonymization_id, user_id, anonymized_record_count, completion_timestamp |
-| AuditQueryExecuted | 管理画面・コンプライアンスレポートから監査ログを検索実行時 | query_id, filter (actor_id/resource_type/date_range等), result_count, executor_id, timestamp |
+| イベント                   | トリガー                                                   | 主要ペイロード                                                                               |
+| -------------------------- | ---------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| AuditEntryRecorded         | SQS メッセージより新規AuditEntry作成時                     | entry_id, actor_id, action, resource_type, resource_id, timestamp, result                    |
+| ArchivalCompleted          | ArchivalJob完了時                                          | job_id, archived_record_count, s3_location, completion_timestamp                             |
+| GDPRAnonymizationRequested | GDPR個人削除要請受信時                                     | anonymization_id, user_id, resource_ids, reason                                              |
+| GDPRAnonymizationCompleted | ユーザー情報の匿名化完了時                                 | anonymization_id, user_id, anonymized_record_count, completion_timestamp                     |
+| AuditQueryExecuted         | 管理画面・コンプライアンスレポートから監査ログを検索実行時 | query_id, filter (actor_id/resource_type/date_range等), result_count, executor_id, timestamp |
 
 ### エンティティ定義（コードスケッチ）
 
@@ -174,17 +174,17 @@ func (a *ArchivalJob) MarkAsCompleted(now time.Time, count int, s3Loc string) er
 
 ### ユースケース一覧
 
-| ユースケース | 入力DTO | 出力DTO | 説明 |
-| --- | --- | --- | --- |
-| RecordAuditEntry | RecordAuditEntryInput{actor_id, action, resource_type, resource_id, result, reason?, ip, user_agent, metadata} | RecordAuditEntryOutput{entry_id} | SQSメッセージ受信→監査ログ作成・保存 |
-| QueryAuditLogs | QueryAuditLogsInput{actor_id?, resource_type?, action?, from_ts?, to_ts?, limit, offset} | QueryAuditLogsOutput{entries[], total_count, next_offset} | 管理画面/レポート用の監査ログ検索 |
-| ExportAuditLogs | ExportAuditLogsInput{actor_id?, resource_type?, action?, from_ts?, to_ts?, format (CSV/JSON)} | ExportAuditLogsOutput{file_url, expires_at} | GDPR個人情報開示・コンプライアンスレポート生成 |
-| ArchiveOldLogs | ArchiveOldLogsInput{retention_policy_id, batch_size} | ArchiveOldLogsOutput{archived_count, next_batch_offset, job_status} | バッチジョブ: PostgreSQL→S3への古いログ移行 |
-| AnonymizeGDPRData | AnonymizeGDPRDataInput{user_id, reason} | AnonymizeGDPRDataOutput{anonymization_id, anonymized_count} | GDPR削除要請時に個人情報をハッシュで置き換え |
-| GetRetentionPolicies | GetRetentionPoliciesInput{resource_type?} | GetRetentionPoliciesOutput{policies[]} | 保管期間ポリシーの照会 |
-| CreateRetentionPolicy | CreateRetentionPolicyInput{resource_type?, action?, retention_days, archive_after_days, is_gdpr_sensitive} | CreateRetentionPolicyOutput{policy_id} | 保管期間ポリシーの新規作成 |
-| ScheduleArchivalJob | ScheduleArchivalJobInput{scheduled_at} | ScheduleArchivalJobOutput{job_id} | 定期的なアーカイブジョブのスケジューリング |
-| GetAnonymizationStatus | GetAnonymizationStatusInput{anonymization_id} | GetAnonymizationStatusOutput{status, anonymized_count, completion_timestamp} | GDPR匿名化処理の進捗確認 |
+| ユースケース           | 入力DTO                                                                                                        | 出力DTO                                                                      | 説明                                           |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- | ---------------------------------------------- |
+| RecordAuditEntry       | RecordAuditEntryInput{actor_id, action, resource_type, resource_id, result, reason?, ip, user_agent, metadata} | RecordAuditEntryOutput{entry_id}                                             | SQSメッセージ受信→監査ログ作成・保存           |
+| QueryAuditLogs         | QueryAuditLogsInput{actor_id?, resource_type?, action?, from_ts?, to_ts?, limit, offset}                       | QueryAuditLogsOutput{entries[], total_count, next_offset}                    | 管理画面/レポート用の監査ログ検索              |
+| ExportAuditLogs        | ExportAuditLogsInput{actor_id?, resource_type?, action?, from_ts?, to_ts?, format (CSV/JSON)}                  | ExportAuditLogsOutput{file_url, expires_at}                                  | GDPR個人情報開示・コンプライアンスレポート生成 |
+| ArchiveOldLogs         | ArchiveOldLogsInput{retention_policy_id, batch_size}                                                           | ArchiveOldLogsOutput{archived_count, next_batch_offset, job_status}          | バッチジョブ: MySQL→S3への古いログ移行         |
+| AnonymizeGDPRData      | AnonymizeGDPRDataInput{user_id, reason}                                                                        | AnonymizeGDPRDataOutput{anonymization_id, anonymized_count}                  | GDPR削除要請時に個人情報をハッシュで置き換え   |
+| GetRetentionPolicies   | GetRetentionPoliciesInput{resource_type?}                                                                      | GetRetentionPoliciesOutput{policies[]}                                       | 保管期間ポリシーの照会                         |
+| CreateRetentionPolicy  | CreateRetentionPolicyInput{resource_type?, action?, retention_days, archive_after_days, is_gdpr_sensitive}     | CreateRetentionPolicyOutput{policy_id}                                       | 保管期間ポリシーの新規作成                     |
+| ScheduleArchivalJob    | ScheduleArchivalJobInput{scheduled_at}                                                                         | ScheduleArchivalJobOutput{job_id}                                            | 定期的なアーカイブジョブのスケジューリング     |
+| GetAnonymizationStatus | GetAnonymizationStatusInput{anonymization_id}                                                                  | GetAnonymizationStatusOutput{status, anonymized_count, completion_timestamp} | GDPR匿名化処理の進捗確認                       |
 
 ### ユースケース詳細（主要ユースケース）
 
@@ -204,7 +204,7 @@ func (a *ArchivalJob) MarkAsCompleted(now time.Time, count int, s3Loc string) er
 4. Action / ResourceType / ActorType の enum バリデーション
    - 不正値 → ErrInvalidAuditAction / ErrInvalidResourceType
 5. AuditEntry エンティティ生成（CreatedAt = now、ArchivedAt = null）
-6. AuditEntryRepository.Save(ctx, entry) で PostgreSQL に INSERT
+6. AuditEntryRepository.Save(ctx, entry) で MySQL に INSERT
    - トランザクション分離レベル: READ_COMMITTED
    - Uniqueness: (entry_id) は自動生成UUID、重複なし
 7. AuditEntryRecorded ドメインイベント発行
@@ -215,7 +215,7 @@ func (a *ArchivalJob) MarkAsCompleted(now time.Time, count int, s3Loc string) er
 
 ### 注意事項
 - SQS メッセージ処理は idempotent であること（entry_id が重複していないか確認）
-- PostgreSQL commit の成功 → SQS delete の関係が重要（commit後にdeleteしないと重複記録が起きる）
+- MySQL commit の成功 → SQS delete の関係が重要（commit後にdeleteしないと重複記録が起きる）
 - 処理時間目標: P99 100ms以内（キャッシュ invalidate のコスト含む）
 
 ### リポジトリ・サービスポート（インターフェース）
@@ -286,35 +286,35 @@ type GDPRAnonymizationPort interface {
 
 ### コントローラ / ハンドラ
 
-| コントローラ | ルート/トリガー | ユースケース |
-| --- | --- | --- |
-| SQSAuditConsumer | Queue: audit-events | RecordAuditEntryUseCase |
-| QueryAuditLogsHandler | POST /admin/audit/query | QueryAuditLogsUseCase |
-| ExportAuditLogsHandler | POST /admin/audit/export | ExportAuditLogsUseCase |
-| GDPRAnonymizeHandler | POST /gdpr/anonymize | AnonymizeGDPRDataUseCase |
-| ArchivalJobScheduler | Cron: 毎日 02:00 UTC | ScheduleArchivalJobUseCase → ArchiveOldLogsUseCase |
-| ArchivalJobWorker | polling 10秒間隔 | ArchiveOldLogsUseCase (スケーリング可能) |
-| HealthHandler | GET /health | ヘルスチェック（ユースケース不要） |
-| MetricsHandler | GET /metrics | Prometheusメトリクス（ユースケース不要） |
+| コントローラ           | ルート/トリガー          | ユースケース                                       |
+| ---------------------- | ------------------------ | -------------------------------------------------- |
+| SQSAuditConsumer       | Queue: audit-events      | RecordAuditEntryUseCase                            |
+| QueryAuditLogsHandler  | POST /admin/audit/query  | QueryAuditLogsUseCase                              |
+| ExportAuditLogsHandler | POST /admin/audit/export | ExportAuditLogsUseCase                             |
+| GDPRAnonymizeHandler   | POST /gdpr/anonymize     | AnonymizeGDPRDataUseCase                           |
+| ArchivalJobScheduler   | Cron: 毎日 02:00 UTC     | ScheduleArchivalJobUseCase → ArchiveOldLogsUseCase |
+| ArchivalJobWorker      | polling 10秒間隔         | ArchiveOldLogsUseCase (スケーリング可能)           |
+| HealthHandler          | GET /health              | ヘルスチェック（ユースケース不要）                 |
+| MetricsHandler         | GET /metrics             | Prometheusメトリクス（ユースケース不要）           |
 
 ### リポジトリ実装
 
-| ポートインターフェース | 実装クラス | データストア |
-| --- | --- | --- |
-| AuditEntryRepository | PostgreSQLAuditRepository | PostgreSQL 14+ (audit_entries テーブル、月ごとパーティション) |
-| RetentionPolicyRepository | PostgreSQLRetentionRepository | PostgreSQL (retention_policies テーブル) |
-| GDPRAnonymizationRepository | PostgreSQLGDPRRepository | PostgreSQL (gdpr_anonymizations テーブル) |
-| ArchivalJobRepository | PostgreSQLArchivalRepository | PostgreSQL (archival_jobs テーブル) |
-| QueryCachePort | RedisQueryCache | Redis 7.x (キー: audit_query:{hash}, TTL: 5分) |
+| ポートインターフェース      | 実装クラス               | データストア                                             |
+| --------------------------- | ------------------------ | -------------------------------------------------------- |
+| AuditEntryRepository        | MySQLAuditRepository     | MySQL 14+ (audit_entries テーブル、月ごとパーティション) |
+| RetentionPolicyRepository   | MySQLRetentionRepository | MySQL (retention_policies テーブル)                      |
+| GDPRAnonymizationRepository | MySQLGDPRRepository      | MySQL (gdpr_anonymizations テーブル)                     |
+| ArchivalJobRepository       | MySQLArchivalRepository  | MySQL (archival_jobs テーブル)                           |
+| QueryCachePort              | RedisQueryCache          | Redis 7.x (キー: audit_query:{hash}, TTL: 5分)           |
 
 ### 外部サービスアダプタ
 
-| ポートインターフェース | アダプタクラス | 外部システム |
-| --- | --- | --- |
-| SQSConsumerPort | AWSSDKSQSConsumer | AWS SQS (recuerdo-audit-events キュー) |
-| EventPublisherPort | AWSSDKSQSPublisher | AWS SQS (audit-entry-recorded キュー) |
-| S3ExportPort | AWSS3Adapter | AWS S3 (recuerdo-audit-exports bucket) |
-| GDPRAnonymizationPort | SHA256Anonymizer | 標準ライブラリ crypto/sha256 |
+| ポートインターフェース | アダプタクラス     | 外部システム                           |
+| ---------------------- | ------------------ | -------------------------------------- |
+| SQSConsumerPort        | AWSSDKSQSConsumer  | AWS SQS (recuerdo-audit-events キュー) |
+| EventPublisherPort     | AWSSDKSQSPublisher | AWS SQS (audit-entry-recorded キュー)  |
+| S3ExportPort           | AWSS3Adapter       | AWS S3 (recuerdo-audit-exports bucket) |
+| GDPRAnonymizationPort  | SHA256Anonymizer   | 標準ライブラリ crypto/sha256           |
 
 ## 5. インフラストラクチャ層
 
@@ -324,7 +324,7 @@ Go 1.22 + net/http + chi (HTTP ルーター) + aws-sdk-go-v2 (SQS/S3クライア
 
 ### データベース
 
-PostgreSQL 14以上。audit_entriesテーブルは月ごとパーティション（RANGE パーティショニング by created_at）で、古いパーティションの高速削除・アーカイブを実現。
+MySQL 14以上。audit_entriesテーブルは月ごとパーティション（RANGE パーティショニング by created_at）で、古いパーティションの高速削除・アーカイブを実現。
 
 #### SQL スキーマ例
 
@@ -417,19 +417,19 @@ CREATE INDEX idx_archival_jobs_scheduled_at ON archival_jobs(scheduled_at);
 
 ### 主要ライブラリ・SDK
 
-| ライブラリ | 目的 | レイヤー |
-| --- | --- | --- |
-| aws-sdk-go-v2/service/sqs | SQS メッセージ消費・発行 | Infrastructure |
-| aws-sdk-go-v2/service/s3 | S3 へのエクスポート・アーカイブ | Infrastructure |
-| github.com/lib/pq | PostgreSQL ドライバ | Infrastructure |
-| go-redis/v9 | Redis クエリキャッシュ | Infrastructure |
-| github.com/google/uuid | UUID 生成 | Domain |
-| github.com/go-chi/chi/v5 | HTTP ルーター | Adapter |
-| uber-go/fx | 依存性注入 | Infrastructure |
-| uber-go/zap | 構造化ログ | Infrastructure |
-| go.opentelemetry.io/otel | 分散トレーシング | Infrastructure |
-| prometheus/client_golang | メトリクス収集 | Infrastructure |
-| github.com/jmoiron/sqlc | SQL コード生成 | Infrastructure |
+| ライブラリ                | 目的                            | レイヤー       |
+| ------------------------- | ------------------------------- | -------------- |
+| aws-sdk-go-v2/service/sqs | SQS メッセージ消費・発行        | Infrastructure |
+| aws-sdk-go-v2/service/s3  | S3 へのエクスポート・アーカイブ | Infrastructure |
+| github.com/lib/pq         | MySQL ドライバ                  | Infrastructure |
+| go-redis/v9               | Redis クエリキャッシュ          | Infrastructure |
+| github.com/google/uuid    | UUID 生成                       | Domain         |
+| github.com/go-chi/chi/v5  | HTTP ルーター                   | Adapter        |
+| uber-go/fx                | 依存性注入                      | Infrastructure |
+| uber-go/zap               | 構造化ログ                      | Infrastructure |
+| go.opentelemetry.io/otel  | 分散トレーシング                | Infrastructure |
+| prometheus/client_golang  | メトリクス収集                  | Infrastructure |
+| github.com/jmoiron/sqlc   | SQL コード生成                  | Infrastructure |
 
 ### 依存性注入
 
@@ -442,10 +442,10 @@ fx.Provide(
     NewRetentionPolicyFactory,
     
     // Repositories
-    NewPostgresAuditRepository,
-    NewPostgresRetentionRepository,
-    NewPostgresGDPRRepository,
-    NewPostgresArchivalRepository,
+    NewMySQLAuditRepository,
+    NewMySQLRetentionRepository,
+    NewMySQLGDPRRepository,
+    NewMySQLArchivalRepository,
     
     // External Services
     NewAWSSDKSQSConsumer,
@@ -507,7 +507,7 @@ recuerdo-audit-svc/
 │   │   ├── record_audit_entry.go    # SQS メッセージ → DB 保存
 │   │   ├── query_audit_logs.go      # 管理画面検索
 │   │   ├── export_audit_logs.go     # GDPR / コンプライアンスレポート
-│   │   ├── archive_old_logs.go      # PostgreSQL → S3 移行
+│   │   ├── archive_old_logs.go      # MySQL → S3 移行
 │   │   ├── anonymize_gdpr_data.go   # GDPR 削除対応
 │   │   ├── get_retention_policies.go
 │   │   ├── create_retention_policy.go
@@ -529,7 +529,7 @@ recuerdo-audit-svc/
 │   │       ├── archival_scheduler.go # Cron ジョブスケジューラ
 │   │       └── archival_worker.go    # ArchiveOldLogsUseCase 実行
 │   └── infrastructure/
-│       ├── postgres/
+│       ├── MySQL/
 │       │   ├── audit_repository.go
 │       │   ├── retention_repository.go
 │       │   ├── gdpr_repository.go
@@ -566,7 +566,7 @@ recuerdo-audit-svc/
 │   │   ├── usecase_test.go
 │   │   └── valueobject_test.go
 │   ├── integration/
-│   │   ├── postgres_test.go         # testcontainers-go
+│   │   ├── MySQL_test.go         # testcontainers-go
 │   │   ├── redis_test.go
 │   │   └── sqs_test.go              # localstack
 │   └── fixtures/
@@ -578,18 +578,18 @@ recuerdo-audit-svc/
 
 ### レイヤー別テストピラミッド
 
-| レイヤー | テスト種別 | モック戦略 |
-| --- | --- | --- |
-| Domain (entity/valueobject) | Unit test | 外部依存なし。AuditEntry.Validate()・RetentionPolicy.CanArchive()等 |
-| UseCase | Unit test | mockeryで全ポート（AuditEntryRepository/SQSConsumerPort等）をモック |
-| Adapter (HTTP Handlers) | Integration test | httptest.Server + モック Repository・UseCase。403/404/500等のエラー応答テスト |
-| Adapter (SQS Consumer) | Integration test | localstack SQS + テスト用メッセージ送信。メッセージ処理の idempotency テスト |
-| Adapter (Archival Scheduler) | Integration test | clock モック（時刻操作）+ PostgreSQL テスト |
-| Infrastructure (PostgreSQL) | Integration test | testcontainers-go で PG コンテナ起動。月次パーティションの切り替え、アーカイブクエリのテスト |
-| Infrastructure (Redis) | Integration test | testcontainers-go で Redis コンテナ起動。キャッシュの TTL・削除テスト |
-| Infrastructure (S3) | Integration test | localstack S3 + エクスポートファイル内容の検証 |
-| E2E | E2E test | イベント受信 → ログ記録 → キャッシュ invalidate → クエリ実行の完全フロー |
-| GDPR compliance test | 特別テスト | ユーザー匿名化後、個人情報がハッシュに置き換わっているか確認。復号不可性の検証 |
+| レイヤー                     | テスト種別       | モック戦略                                                                                   |
+| ---------------------------- | ---------------- | -------------------------------------------------------------------------------------------- |
+| Domain (entity/valueobject)  | Unit test        | 外部依存なし。AuditEntry.Validate()・RetentionPolicy.CanArchive()等                          |
+| UseCase                      | Unit test        | mockeryで全ポート（AuditEntryRepository/SQSConsumerPort等）をモック                          |
+| Adapter (HTTP Handlers)      | Integration test | httptest.Server + モック Repository・UseCase。403/404/500等のエラー応答テスト                |
+| Adapter (SQS Consumer)       | Integration test | localstack SQS + テスト用メッセージ送信。メッセージ処理の idempotency テスト                 |
+| Adapter (Archival Scheduler) | Integration test | clock モック（時刻操作）+ MySQL テスト                                                       |
+| Infrastructure (MySQL)       | Integration test | testcontainers-go で PG コンテナ起動。月次パーティションの切り替え、アーカイブクエリのテスト |
+| Infrastructure (Redis)       | Integration test | testcontainers-go で Redis コンテナ起動。キャッシュの TTL・削除テスト                        |
+| Infrastructure (S3)          | Integration test | localstack S3 + エクスポートファイル内容の検証                                               |
+| E2E                          | E2E test         | イベント受信 → ログ記録 → キャッシュ invalidate → クエリ実行の完全フロー                     |
+| GDPR compliance test         | 特別テスト       | ユーザー匿名化後、個人情報がハッシュに置き換わっているか確認。復号不可性の検証               |
 
 ### テストコード例
 
@@ -695,14 +695,14 @@ func TestQueryAuditLogsHandler_UnauthorizedAccess(t *testing.T) {
     assert.Equal(t, http.StatusUnauthorized, w.Code)
 }
 
-// Integration Test (PostgreSQL + testcontainers)
+// Integration Test (MySQL + testcontainers)
 func TestArchiveOldLogs_MigratesRecordToS3(t *testing.T) {
     if testing.Short() {
         t.Skip("Skipping integration test")
     }
 
     ctx := context.Background()
-    pgContainer, db := setupPostgres(ctx, t) // testcontainers-go
+    pgContainer, db := setupMySQL(ctx, t) // testcontainers-go
     defer pgContainer.Terminate(ctx)
 
     // 古いログ挿入（2年以上前）
@@ -713,7 +713,7 @@ func TestArchiveOldLogs_MigratesRecordToS3(t *testing.T) {
         CreatedAt: time.Now().AddDate(-2, -1, 0),
     }
     
-    repo := NewPostgresAuditRepository(db)
+    repo := NewMySQLAuditRepository(db)
     err := repo.Save(ctx, oldEntry)
     assert.NoError(t, err)
 
@@ -739,7 +739,7 @@ func TestArchiveOldLogs_MigratesRecordToS3(t *testing.T) {
 // GDPR Compliance Test
 func TestGDPRAnonymization_ReplacesPersonalInfo(t *testing.T) {
     ctx := context.Background()
-    pgContainer, db := setupPostgres(ctx, t)
+    pgContainer, db := setupMySQL(ctx, t)
     defer pgContainer.Terminate(ctx)
 
     // ユーザーのログを複数挿入（メール・名前含む）
@@ -749,7 +749,7 @@ func TestGDPRAnonymization_ReplacesPersonalInfo(t *testing.T) {
         Metadata:   map[string]interface{}{"email": "john@example.com", "name": "John Doe"},
         CreatedAt:  time.Now(),
     }
-    repo := NewPostgresAuditRepository(db)
+    repo := NewMySQLAuditRepository(db)
     repo.Save(ctx, entry)
 
     // GDPR匿名化実行
@@ -793,30 +793,30 @@ func TestGDPRAnonymization_ReplacesPersonalInfo(t *testing.T) {
 
 ### エラー → HTTPステータスマッピング
 
-| ドメインエラー | HTTPステータス | ユーザーメッセージ |
-| --- | --- | --- |
-| ErrMissingActorID | 400 Bad Request | Invalid audit entry: actor_id is required |
-| ErrInvalidAuditAction | 400 Bad Request | Invalid audit action. Allowed: READ, WRITE, DELETE, LOGIN, LOGOUT, PERMISSION_CHECK, ADMIN_ACTION |
-| ErrInvalidResourceType | 400 Bad Request | Invalid resource type. Allowed: USER, ORG, MEDIA, ALBUM, EVENT, MESSAGE, ROLE, INTEGRATION |
-| ErrDuplicateEntryID | 409 Conflict | Audit entry with this ID already exists (idempotency check) |
-| ErrQueryCacheInvalidate | 500 Internal Server Error | Failed to refresh audit log cache. Please try again. |
-| ErrS3UploadFailed | 503 Service Unavailable | Failed to export audit logs to S3. Please try again later. |
-| ErrGDPRAnonymizationNotFound | 404 Not Found | GDPR anonymization request not found |
-| ErrInvalidRetentionDays | 400 Bad Request | Retention days must be greater than 0 |
+| ドメインエラー               | HTTPステータス            | ユーザーメッセージ                                                                                |
+| ---------------------------- | ------------------------- | ------------------------------------------------------------------------------------------------- |
+| ErrMissingActorID            | 400 Bad Request           | Invalid audit entry: actor_id is required                                                         |
+| ErrInvalidAuditAction        | 400 Bad Request           | Invalid audit action. Allowed: READ, WRITE, DELETE, LOGIN, LOGOUT, PERMISSION_CHECK, ADMIN_ACTION |
+| ErrInvalidResourceType       | 400 Bad Request           | Invalid resource type. Allowed: USER, ORG, MEDIA, ALBUM, EVENT, MESSAGE, ROLE, INTEGRATION        |
+| ErrDuplicateEntryID          | 409 Conflict              | Audit entry with this ID already exists (idempotency check)                                       |
+| ErrQueryCacheInvalidate      | 500 Internal Server Error | Failed to refresh audit log cache. Please try again.                                              |
+| ErrS3UploadFailed            | 503 Service Unavailable   | Failed to export audit logs to S3. Please try again later.                                        |
+| ErrGDPRAnonymizationNotFound | 404 Not Found             | GDPR anonymization request not found                                                              |
+| ErrInvalidRetentionDays      | 400 Bad Request           | Retention days must be greater than 0                                                             |
 
 ## 9. 未決事項
 
 ### 質問・決定事項
 
-| # | 質問 | ステータス | 決定 |
-| --- | --- | --- | --- |
-| 1 | 月次パーティション分割時、新しいパーティションは自動作成するか。パーティション管理の自動化レベルは？ | Open | 未決定。pg_partman拡張機能を使った自動パーティション作成を検討中。初期は手動で月初に作成する運用 |
-| 2 | GDPRデータ削除時、ユーザーのactual nameをハッシュ化する際のsalt値は何か。salt固定値か、ユーザーごとのsaltか？ | Open | 未決定。固定saltを使用する場合、ハッシュ値から逆向きに個人情報を推測されるリスクがある。検討：ユーザーIDをsaltとして使用し、決定論的ハッシュを実現 |
-| 3 | 監査ログの検索API（QueryAuditLogs）は、完全な管理者専用アクセス（SUPERUSER）か、それとも一般ユーザーも自分のログだけ閲覧可能か？ | Open | 未決定。段階的に、SUPERUSERのみアクセス可能で開始し、後にエンドユーザーの個人データ開示機能（GDPR Data Subject Access Request）を追加する予定 |
-| 4 | S3へのアーカイブ形式は何か（CSV/JSON/Parquet等）。クエリ性能とストレージコストのバランス | Open | 未決定。Parquet形式を推奨（圧縮率が高く、Athenaで高速クエリ可能）。初期はJSON形式で開始し、パフォーマンスに応じて Parquet へ移行 |
-| 5 | RetentionPolicy の更新時、既存ログの保管期間は新ポリシーで遡及適用されるか、それとも記録時のポリシーを保持するか？ | Open | 未決定。基本ルール：記録時のポリシーを保持（retroactive適用なし）。ポリシー変更は以降のログから適用される |
-| 6 | SQS メッセージの visibility timeout と再処理の上限は？無限ループの防止を考慮する必要があるか | Open | 未決定。Visibility timeout: 300秒。失敗時は最大3回まで再処理後、DLQへ移動する。DLQメッセージは手動確認が必要 |
-| 7 | 複数の Archival Worker が稼働する場合、ジョブの競合（同じパーティションを同時にアーカイブ）を防ぐための排他制御は？ | Open | 未決定。PostgreSQL の ADVISORY LOCK または Kubernetes Job spec.parallelism=1 で制御。初期は Job を1つに限定 |
-| 8 | GDPRAnonymization が FAILED になった場合の手動リトライ流程は？管理者の介入が必要か、それとも自動リトライするか | Open | 未決定。初期は失敗ログを記録し、管理者が手動でリトライ。後に非同期ワーカーによる自動リトライを追加可能 |
-| 9 | Redis query cache の invalidation 戦略は、全キーを一括削除か、それとも actor_id/resource_type 単位の選別削除か | Open | 未決定。actor_id・resource_type 単位で削除（精密性）。キャッシュキー構造: `audit_query:{actor_id}:{resource_type}:{action_hash}` |
-| 10 | 外部への監査ログエクスポート（CSV/JSON）ファイルの有効期限は？S3 署名付きURLのTTLは？ | Open | 未決定。署名付きURL有効期限：24時間。ダウンロード後、クライアント側で削除推奨。S3ライフサイクルルールで期限切れファイルは30日後に削除 |
+| #   | 質問                                                                                                                             | ステータス | 決定                                                                                                                                               |
+| --- | -------------------------------------------------------------------------------------------------------------------------------- | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | 月次パーティション分割時、新しいパーティションは自動作成するか。パーティション管理の自動化レベルは？                             | Open       | 未決定。pg_partman拡張機能を使った自動パーティション作成を検討中。初期は手動で月初に作成する運用                                                   |
+| 2   | GDPRデータ削除時、ユーザーのactual nameをハッシュ化する際のsalt値は何か。salt固定値か、ユーザーごとのsaltか？                    | Open       | 未決定。固定saltを使用する場合、ハッシュ値から逆向きに個人情報を推測されるリスクがある。検討：ユーザーIDをsaltとして使用し、決定論的ハッシュを実現 |
+| 3   | 監査ログの検索API（QueryAuditLogs）は、完全な管理者専用アクセス（SUPERUSER）か、それとも一般ユーザーも自分のログだけ閲覧可能か？ | Open       | 未決定。段階的に、SUPERUSERのみアクセス可能で開始し、後にエンドユーザーの個人データ開示機能（GDPR Data Subject Access Request）を追加する予定      |
+| 4   | S3へのアーカイブ形式は何か（CSV/JSON/Parquet等）。クエリ性能とストレージコストのバランス                                         | Open       | 未決定。Parquet形式を推奨（圧縮率が高く、Athenaで高速クエリ可能）。初期はJSON形式で開始し、パフォーマンスに応じて Parquet へ移行                   |
+| 5   | RetentionPolicy の更新時、既存ログの保管期間は新ポリシーで遡及適用されるか、それとも記録時のポリシーを保持するか？               | Open       | 未決定。基本ルール：記録時のポリシーを保持（retroactive適用なし）。ポリシー変更は以降のログから適用される                                          |
+| 6   | SQS メッセージの visibility timeout と再処理の上限は？無限ループの防止を考慮する必要があるか                                     | Open       | 未決定。Visibility timeout: 300秒。失敗時は最大3回まで再処理後、DLQへ移動する。DLQメッセージは手動確認が必要                                       |
+| 7   | 複数の Archival Worker が稼働する場合、ジョブの競合（同じパーティションを同時にアーカイブ）を防ぐための排他制御は？              | Open       | 未決定。MySQL の ADVISORY LOCK または Kubernetes Job spec.parallelism=1 で制御。初期は Job を1つに限定                                             |
+| 8   | GDPRAnonymization が FAILED になった場合の手動リトライ流程は？管理者の介入が必要か、それとも自動リトライするか                   | Open       | 未決定。初期は失敗ログを記録し、管理者が手動でリトライ。後に非同期ワーカーによる自動リトライを追加可能                                             |
+| 9   | Redis query cache の invalidation 戦略は、全キーを一括削除か、それとも actor_id/resource_type 単位の選別削除か                   | Open       | 未決定。actor_id・resource_type 単位で削除（精密性）。キャッシュキー構造: `audit_query:{actor_id}:{resource_type}:{action_hash}`                   |
+| 10  | 外部への監査ログエクスポート（CSV/JSON）ファイルの有効期限は？S3 署名付きURLのTTLは？                                            | Open       | 未決定。署名付きURL有効期限：24時間。ダウンロード後、クライアント側で削除推奨。S3ライフサイクルルールで期限切れファイルは30日後に削除              |

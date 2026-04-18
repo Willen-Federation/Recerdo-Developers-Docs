@@ -29,23 +29,23 @@ Key User Stories:
 
 ### ドメインモデル
 
-| エンティティ | 説明 | 主要属性 |
-| --- | --- | --- |
-| MediaFile | ユーザーがアップロードしたメディアファイルの核となるエンティティ。ステータスライフサイクル（UPLOADING→PROCESSING→READY/FAILED）を管理 | id (ULID), org_id, uploader_id, original_filename, mime_type, file_size_bytes, storage_key (S3 key), status (UPLOADING/PROCESSING/READY/FAILED), access_policy (PRIVATE/ORG_MEMBERS/EVENT_MEMBERS), created_at, updated_at |
-| MediaChunk | 大容量ファイルのチャンク型アップロードを管理。各チャンクはS3に一度に保存され、最後にマージされる | id (ULID), media_id, chunk_index, s3_key, size_bytes, uploaded_at, expires_at (24時間後) |
-| ProcessingJob | メディア処理（変換・リサイズ・圧縮）の非同期ジョブ。asynqキュー経由でRedisで管理され、各ジョブの状態遷移をトラッキング | id (ULID), media_id, job_type (HEIC_CONVERT/THUMBNAIL_GEN), status (PENDING/RUNNING/DONE/FAILED), started_at, completed_at, error_msg?, result_storage_key? |
+| エンティティ  | 説明                                                                                                                                  | 主要属性                                                                                                                                                                                                                   |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| MediaFile     | ユーザーがアップロードしたメディアファイルの核となるエンティティ。ステータスライフサイクル（UPLOADING→PROCESSING→READY/FAILED）を管理 | id (ULID), org_id, uploader_id, original_filename, mime_type, file_size_bytes, storage_key (S3 key), status (UPLOADING/PROCESSING/READY/FAILED), access_policy (PRIVATE/ORG_MEMBERS/EVENT_MEMBERS), created_at, updated_at |
+| MediaChunk    | 大容量ファイルのチャンク型アップロードを管理。各チャンクはS3に一度に保存され、最後にマージされる                                      | id (ULID), media_id, chunk_index, s3_key, size_bytes, uploaded_at, expires_at (24時間後)                                                                                                                                   |
+| ProcessingJob | メディア処理（変換・リサイズ・圧縮）の非同期ジョブ。asynqキュー経由でRedisで管理され、各ジョブの状態遷移をトラッキング                | id (ULID), media_id, job_type (HEIC_CONVERT/THUMBNAIL_GEN), status (PENDING/RUNNING/DONE/FAILED), started_at, completed_at, error_msg?, result_storage_key?                                                                |
 
 ### 値オブジェクト
 
-| 値オブジェクト | 説明 | バリデーションルール |
-| --- | --- | --- |
-| MediaStatus | ファイル処理状態の値オブジェクト | UPLOADING（アップロード中）・PROCESSING（処理中）・READY（配信可能）・FAILED（処理失敗）のいずれか。状態遷移は定義済みの遷移図に従う |
-| MimeType | ファイルの種別を表す。アップロード時に厳格にバリデーション | 許可リスト: image/jpeg, image/png, image/heic, video/mp4。拡張子とContent-Typeの両方をチェック。大文字・小文字区別しない |
-| FileSize | ファイルサイズの値オブジェクト。ファイル種別ごとに最大値を設定 | image/*: 最大100MB、video/mp4: 最大500MB。0バイト以下は不許可 |
-| StorageKey | S3上のファイル格納位置を表すキー。組織ID・ファイルID・タイプで一意に決定される | 形式: {org_id}/{media_id}/{type} ただし type ∈ {original, optimized, thumb}。パストラバーサル防止のため／を含む入力を拒否 |
-| AccessPolicy | メディアアクセス制御ポリシー | PRIVATE（本人のみ）・ORG_MEMBERS（組織メンバー）・EVENT_MEMBERS（イベント参加者）のいずれか。デフォルトはPRIVATE |
-| DeliveryType | クライアントが要求する配信形式 | original（元ファイル）・optimized（最適化版・HEIC→PNG）・thumb（サムネイル最大1280px）のいずれか |
-| PresignedURL | AWS S3の一時的なアクセスURL。1時間の有効期限を持つ | HTTPS URLのみ。URLには署名が含まれ、改ざん不可。有効期限切れ後は無効 |
+| 値オブジェクト | 説明                                                                           | バリデーションルール                                                                                                                 |
+| -------------- | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------ |
+| MediaStatus    | ファイル処理状態の値オブジェクト                                               | UPLOADING（アップロード中）・PROCESSING（処理中）・READY（配信可能）・FAILED（処理失敗）のいずれか。状態遷移は定義済みの遷移図に従う |
+| MimeType       | ファイルの種別を表す。アップロード時に厳格にバリデーション                     | 許可リスト: image/jpeg, image/png, image/heic, video/mp4。拡張子とContent-Typeの両方をチェック。大文字・小文字区別しない             |
+| FileSize       | ファイルサイズの値オブジェクト。ファイル種別ごとに最大値を設定                 | image/*: 最大100MB、video/mp4: 最大500MB。0バイト以下は不許可                                                                        |
+| StorageKey     | S3上のファイル格納位置を表すキー。組織ID・ファイルID・タイプで一意に決定される | 形式: {org_id}/{media_id}/{type} ただし type ∈ {original, optimized, thumb}。パストラバーサル防止のため／を含む入力を拒否            |
+| AccessPolicy   | メディアアクセス制御ポリシー                                                   | PRIVATE（本人のみ）・ORG_MEMBERS（組織メンバー）・EVENT_MEMBERS（イベント参加者）のいずれか。デフォルトはPRIVATE                     |
+| DeliveryType   | クライアントが要求する配信形式                                                 | original（元ファイル）・optimized（最適化版・HEIC→PNG）・thumb（サムネイル最大1280px）のいずれか                                     |
+| PresignedURL   | AWS S3の一時的なアクセスURL。1時間の有効期限を持つ                             | HTTPS URLのみ。URLには署名が含まれ、改ざん不可。有効期限切れ後は無効                                                                 |
 
 ### ドメインルール / 不変条件
 
@@ -60,12 +60,12 @@ Key User Stories:
 
 ### ドメインイベント
 
-| イベント | トリガー | 主要ペイロード | 発行先 |
-| --- | --- | --- | --- |
-| MediaUploaded | POST /api/media/{org_id}/single または /merge 成功時 | media_id, org_id, uploader_id, original_filename, mime_type, file_size_bytes, timestamp | AWS SQS (recuerdo-media-events) |
-| MediaReady | ProcessingJob が DONE になり thumbnail_gen も完了時 | media_id, org_id, original_filename, storage_key_original, storage_key_optimized, storage_key_thumb, timestamp | AWS SQS (recuerdo-media-events) |
-| MediaProcessingFailed | ProcessingJob が FAILED になった時 | media_id, job_type, error_msg, timestamp | AWS SQS (recuerdo-media-events) |
-| MediaDeleted | DELETE /api/media/{org_id}/{media_id} 成功時 | media_id, org_id, uploader_id, timestamp | AWS SQS (recuerdo-media-events) |
+| イベント              | トリガー                                             | 主要ペイロード                                                                                                 | 発行先                          |
+| --------------------- | ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- | ------------------------------- |
+| MediaUploaded         | POST /api/media/{org_id}/single または /merge 成功時 | media_id, org_id, uploader_id, original_filename, mime_type, file_size_bytes, timestamp                        | AWS SQS (recuerdo-media-events) |
+| MediaReady            | ProcessingJob が DONE になり thumbnail_gen も完了時  | media_id, org_id, original_filename, storage_key_original, storage_key_optimized, storage_key_thumb, timestamp | AWS SQS (recuerdo-media-events) |
+| MediaProcessingFailed | ProcessingJob が FAILED になった時                   | media_id, job_type, error_msg, timestamp                                                                       | AWS SQS (recuerdo-media-events) |
+| MediaDeleted          | DELETE /api/media/{org_id}/{media_id} 成功時         | media_id, org_id, uploader_id, timestamp                                                                       | AWS SQS (recuerdo-media-events) |
 
 ### エンティティ定義（コードスケッチ）
 
@@ -225,18 +225,18 @@ func (p *ProcessingJob) Failed(errMsg string) {
 
 ### ユースケース一覧
 
-| ユースケース | 入力DTO | 出力DTO | 説明 |
-| --- | --- | --- | --- |
-| UploadMediaSingle | UploadMediaSingleInput{org_id, uploader_id, file_content, filename, mime_type, access_policy?} | UploadMediaSingleOutput{media_id, status, storage_key} | 100MB以下の単一ファイルアップロード。最重要ユースケース |
-| InitiateChunkedUpload | InitiateChunkedUploadInput{org_id, uploader_id, filename, mime_type, total_size_bytes} | InitiateChunkedUploadOutput{media_id, chunk_size_bytes, total_chunks, upload_id} | 大容量ファイルのチャンク型アップロード初期化 |
-| UploadMediaChunk | UploadMediaChunkInput{upload_id, chunk_index, chunk_data, chunk_hash} | UploadMediaChunkOutput{chunk_index, uploaded_bytes, s3_key} | 各チャンクのアップロード。再試行対応 |
-| MergeChunkedUpload | MergeChunkedUploadInput{upload_id, media_id, total_chunks} | MergeChunkedUploadOutput{media_id, status, storage_key} | 全チャンク受信後にS3で統合 |
-| DeliverMedia | DeliverMediaInput{org_id, media_id, delivery_type (original/optimized/thumb), requesting_user_id} | DeliverMediaOutput{presigned_url, content_type, expires_at} | メディア配信。1時間有効なPresigned URLを生成 |
-| GetMediaMetadata | GetMediaMetadataInput{org_id, media_id, requesting_user_id} | GetMediaMetadataOutput{media_id, filename, mime_type, size_bytes, status, access_policy, uploader_id, created_at} | メディアメタデータ取得（アクセス権チェック済み） |
-| DeleteMedia | DeleteMediaInput{org_id, media_id, requesting_user_id} | DeleteMediaOutput{success, deleted_at} | メディア削除。アップロード者のみ可能 |
-| RetryProcessing | RetryProcessingInput{media_id, job_type?} | RetryProcessingOutput{job_id, status} | 失敗した処理ジョブの再実行 |
-| ListOrgMedia | ListOrgMediaInput{org_id, requesting_user_id, limit, offset} | ListOrgMediaOutput{media_list, total_count} | 組織のメディア一覧取得。アクセス権に基づきフィルタリング |
-| CleanupExpiredChunks | CleanupExpiredChunksInput{} | CleanupExpiredChunksOutput{deleted_count} | 有効期限切れチャンクの自動削除（夜間バッチ） |
+| ユースケース          | 入力DTO                                                                                           | 出力DTO                                                                                                           | 説明                                                     |
+| --------------------- | ------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| UploadMediaSingle     | UploadMediaSingleInput{org_id, uploader_id, file_content, filename, mime_type, access_policy?}    | UploadMediaSingleOutput{media_id, status, storage_key}                                                            | 100MB以下の単一ファイルアップロード。最重要ユースケース  |
+| InitiateChunkedUpload | InitiateChunkedUploadInput{org_id, uploader_id, filename, mime_type, total_size_bytes}            | InitiateChunkedUploadOutput{media_id, chunk_size_bytes, total_chunks, upload_id}                                  | 大容量ファイルのチャンク型アップロード初期化             |
+| UploadMediaChunk      | UploadMediaChunkInput{upload_id, chunk_index, chunk_data, chunk_hash}                             | UploadMediaChunkOutput{chunk_index, uploaded_bytes, s3_key}                                                       | 各チャンクのアップロード。再試行対応                     |
+| MergeChunkedUpload    | MergeChunkedUploadInput{upload_id, media_id, total_chunks}                                        | MergeChunkedUploadOutput{media_id, status, storage_key}                                                           | 全チャンク受信後にS3で統合                               |
+| DeliverMedia          | DeliverMediaInput{org_id, media_id, delivery_type (original/optimized/thumb), requesting_user_id} | DeliverMediaOutput{presigned_url, content_type, expires_at}                                                       | メディア配信。1時間有効なPresigned URLを生成             |
+| GetMediaMetadata      | GetMediaMetadataInput{org_id, media_id, requesting_user_id}                                       | GetMediaMetadataOutput{media_id, filename, mime_type, size_bytes, status, access_policy, uploader_id, created_at} | メディアメタデータ取得（アクセス権チェック済み）         |
+| DeleteMedia           | DeleteMediaInput{org_id, media_id, requesting_user_id}                                            | DeleteMediaOutput{success, deleted_at}                                                                            | メディア削除。アップロード者のみ可能                     |
+| RetryProcessing       | RetryProcessingInput{media_id, job_type?}                                                         | RetryProcessingOutput{job_id, status}                                                                             | 失敗した処理ジョブの再実行                               |
+| ListOrgMedia          | ListOrgMediaInput{org_id, requesting_user_id, limit, offset}                                      | ListOrgMediaOutput{media_list, total_count}                                                                       | 組織のメディア一覧取得。アクセス権に基づきフィルタリング |
+| CleanupExpiredChunks  | CleanupExpiredChunksInput{}                                                                       | CleanupExpiredChunksOutput{deleted_count}                                                                         | 有効期限切れチャンクの自動削除（夜間バッチ）             |
 
 ### ユースケース詳細（主要ユースケース）
 
@@ -257,7 +257,7 @@ iOSアプリ/WebアプリからのPOST /api/media/{org_id}/single (multipart/for
 3. Permission Service へ org_id の所属メンバーシップ確認（gRPC）
    - 確認失敗 → 401 Unauthorized
 4. MediaFile を新規作成（status="UPLOADING"）
-5. MediaFileRepository.Save() でPostgresに保存
+5. MediaFileRepository.Save() でMySQLに保存
 6. S3へのアップロード:
    a. StorageKey を生成: {org_id}/{media_id}/original
    b. PutObject（"raw/" フォルダ）で保存
@@ -400,38 +400,38 @@ type DeleteMediaUseCase interface {
 
 ### コントローラ / ハンドラ
 
-| コントローラ | ルート/トリガー | ユースケース | 説明 |
-| --- | --- | --- | --- |
-| HTTPMediaHandler | POST /api/media/{org_id}/single | UploadMediaSingleUseCase | 単一ファイルアップロード（multipart/form-data） |
-| HTTPMediaHandler | GET /api/media/{org_id}/{media_id} | DeliverMediaUseCase | メディア配信（Presigned URL返却） |
-| HTTPMediaHandler | GET /api/media/{org_id}/{media_id}/metadata | GetMediaMetadataUseCase | メディアメタデータ取得 |
-| HTTPMediaHandler | DELETE /api/media/{org_id}/{media_id} | DeleteMediaUseCase | メディア削除（アップロード者のみ） |
-| HTTPMediaHandler | GET /api/media/{org_id} | ListOrgMediaUseCase | 組織メディア一覧（ページネーション対応） |
-| HTTPChunkedUploadHandler | POST /api/media/{org_id}/upload | InitiateChunkedUploadUseCase | チャンク型アップロード初期化 |
-| HTTPChunkedUploadHandler | PUT /api/media/{org_id}/upload/{upload_id}/{chunk_index} | UploadMediaChunkUseCase | 各チャンクアップロード |
-| HTTPChunkedUploadHandler | POST /api/media/{org_id}/merge | MergeChunkedUploadUseCase | チャンクマージ完了 |
-| HealthHandler | GET /health | ヘルスチェック | 依存サービス（S3/Redis/PostgreSQL）の状態確認 |
-| MetricsHandler | GET /metrics | Prometheusメトリクス | アップロード件数・処理時間・エラー率 |
-| AsyncJobWorker | asynq Consumer | ProcessingJobUseCase | Redis キューの HEIC_CONVERT・THUMBNAIL_GEN ジョブ実行 |
-| BatchCleanupWorker | cron: 夜間 02:00 | CleanupExpiredChunksUseCase | 有効期限切れチャンク削除 |
+| コントローラ             | ルート/トリガー                                          | ユースケース                 | 説明                                                  |
+| ------------------------ | -------------------------------------------------------- | ---------------------------- | ----------------------------------------------------- |
+| HTTPMediaHandler         | POST /api/media/{org_id}/single                          | UploadMediaSingleUseCase     | 単一ファイルアップロード（multipart/form-data）       |
+| HTTPMediaHandler         | GET /api/media/{org_id}/{media_id}                       | DeliverMediaUseCase          | メディア配信（Presigned URL返却）                     |
+| HTTPMediaHandler         | GET /api/media/{org_id}/{media_id}/metadata              | GetMediaMetadataUseCase      | メディアメタデータ取得                                |
+| HTTPMediaHandler         | DELETE /api/media/{org_id}/{media_id}                    | DeleteMediaUseCase           | メディア削除（アップロード者のみ）                    |
+| HTTPMediaHandler         | GET /api/media/{org_id}                                  | ListOrgMediaUseCase          | 組織メディア一覧（ページネーション対応）              |
+| HTTPChunkedUploadHandler | POST /api/media/{org_id}/upload                          | InitiateChunkedUploadUseCase | チャンク型アップロード初期化                          |
+| HTTPChunkedUploadHandler | PUT /api/media/{org_id}/upload/{upload_id}/{chunk_index} | UploadMediaChunkUseCase      | 各チャンクアップロード                                |
+| HTTPChunkedUploadHandler | POST /api/media/{org_id}/merge                           | MergeChunkedUploadUseCase    | チャンクマージ完了                                    |
+| HealthHandler            | GET /health                                              | ヘルスチェック               | 依存サービス（S3/Redis/MySQL）の状態確認              |
+| MetricsHandler           | GET /metrics                                             | Prometheusメトリクス         | アップロード件数・処理時間・エラー率                  |
+| AsyncJobWorker           | asynq Consumer                                           | ProcessingJobUseCase         | Redis キューの HEIC_CONVERT・THUMBNAIL_GEN ジョブ実行 |
+| BatchCleanupWorker       | cron: 夜間 02:00                                         | CleanupExpiredChunksUseCase  | 有効期限切れチャンク削除                              |
 
 ### リポジトリ実装
 
-| ポートインターフェース | 実装クラス | データストア | 説明 |
-| --- | --- | --- | --- |
-| MediaRepository | PostgreSQLMediaRepository | PostgreSQL (media_files table) | MediaFile の永続化・検索 |
-| MediaChunkRepository | PostgreSQLMediaChunkRepository | PostgreSQL (media_chunks table) | MediaChunk の管理 |
-| ProcessingJobRepository | PostgreSQLProcessingJobRepository | PostgreSQL (processing_jobs table) | ProcessingJob の状態管理 |
-| CachePort | RedisCacheAdapter | Redis 7.x | Presigned URL キャッシュ |
+| ポートインターフェース  | 実装クラス                   | データストア                  | 説明                     |
+| ----------------------- | ---------------------------- | ----------------------------- | ------------------------ |
+| MediaRepository         | MySQLMediaRepository         | MySQL (media_files table)     | MediaFile の永続化・検索 |
+| MediaChunkRepository    | MySQLMediaChunkRepository    | MySQL (media_chunks table)    | MediaChunk の管理        |
+| ProcessingJobRepository | MySQLProcessingJobRepository | MySQL (processing_jobs table) | ProcessingJob の状態管理 |
+| CachePort               | RedisCacheAdapter            | Redis 7.x                     | Presigned URL キャッシュ |
 
 ### 外部サービスアダプタ
 
-| ポートインターフェース | アダプタクラス | 外部システム | 説明 |
-| --- | --- | --- | --- |
-| StoragePort | S3StorageAdapter | AWS S3 | ファイルアップロード・Presigned URL生成・チャンクマージ |
-| ProcessingQueuePort | AsynqProcessingQueue | Redis 7.x + asynq | ジョブキュー管理（PENDING/RUNNING/DONE/FAILED） |
-| PermissionPort | PermissionServiceGRPCAdapter | recuerdo-permission-svc (gRPC) | 組織メンバーシップ・イベント参加状態の確認 |
-| EventPublisherPort | SQSEventPublisher | AWS SQS (recuerdo-media-events) | MediaUploaded・MediaReady・MediaProcessingFailed イベント発行 |
+| ポートインターフェース | アダプタクラス               | 外部システム                    | 説明                                                          |
+| ---------------------- | ---------------------------- | ------------------------------- | ------------------------------------------------------------- |
+| StoragePort            | S3StorageAdapter             | AWS S3                          | ファイルアップロード・Presigned URL生成・チャンクマージ       |
+| ProcessingQueuePort    | AsynqProcessingQueue         | Redis 7.x + asynq               | ジョブキュー管理（PENDING/RUNNING/DONE/FAILED）               |
+| PermissionPort         | PermissionServiceGRPCAdapter | recuerdo-permission-svc (gRPC)  | 組織メンバーシップ・イベント参加状態の確認                    |
+| EventPublisherPort     | SQSEventPublisher            | AWS SQS (recuerdo-media-events) | MediaUploaded・MediaReady・MediaProcessingFailed イベント発行 |
 
 ## 5. インフラストラクチャ層
 
@@ -441,7 +441,7 @@ Go 1.22 + net/http (HTTPサーバー) + gorilla/mux (ルーティング) + goril
 
 ### データベース
 
-**PostgreSQL 14.x** (go-pgx/v5, pool max 50):
+**MySQL 14.x** (go-pgx/v5, pool max 50):
 - media_files テーブル（MediaFile永続化）
 - media_chunks テーブル（チャンク管理）
 - processing_jobs テーブル（処理ジョブ状態）
@@ -523,22 +523,22 @@ CREATE INDEX idx_processing_jobs_created_at ON processing_jobs(created_at);
 
 ### 主要ライブラリ・SDK
 
-| ライブラリ | 目的 | レイヤー |
-| --- | --- | --- |
-| github.com/oklog/ulid/v2 | MediaFile・Chunk・ProcessingJob の ID生成（順序付き・UUID互換） | Domain |
-| github.com/gorilla/mux | HTTPルーティング | Adapter |
-| github.com/aws/aws-sdk-go-v2/service/s3 | S3 ファイルアップロード・Presigned URL生成 | Infrastructure |
-| hibiken/asynq | Redis キューによるジョブスケジューリング（HEIC_CONVERT・THUMBNAIL_GEN） | Infrastructure |
-| go-redis/redis/v9 | Redis キャッシュ・asynq ジョブキュー | Infrastructure |
-| jackc/pgx/v5 | PostgreSQL ドライバー（接続プーリング） | Infrastructure |
-| kolesa-team/go-psd | HEIC→PNG 変換ライブラリ | Infrastructure |
-| davidbyttow/govips/v2 | 画像リサイズ・サムネイル生成 | Infrastructure |
-| google.golang.org/grpc | Permission Service gRPC クライアント | Infrastructure |
-| aws-sdk-go-v2/service/sqs | SQS イベント発行 | Infrastructure |
-| uber-go/fx | 依存性注入コンテナ | Infrastructure |
-| uber-go/zap | 構造化ログ（JSON形式） | Infrastructure |
-| go.opentelemetry.io/otel | 分散トレーシング・W3C Trace Context | Infrastructure |
-| prometheus/client_golang | メトリクス収集 | Infrastructure |
+| ライブラリ                              | 目的                                                                    | レイヤー       |
+| --------------------------------------- | ----------------------------------------------------------------------- | -------------- |
+| github.com/oklog/ulid/v2                | MediaFile・Chunk・ProcessingJob の ID生成（順序付き・UUID互換）         | Domain         |
+| github.com/gorilla/mux                  | HTTPルーティング                                                        | Adapter        |
+| github.com/aws/aws-sdk-go-v2/service/s3 | S3 ファイルアップロード・Presigned URL生成                              | Infrastructure |
+| hibiken/asynq                           | Redis キューによるジョブスケジューリング（HEIC_CONVERT・THUMBNAIL_GEN） | Infrastructure |
+| go-redis/redis/v9                       | Redis キャッシュ・asynq ジョブキュー                                    | Infrastructure |
+| jackc/pgx/v5                            | MySQL ドライバー（接続プーリング）                                      | Infrastructure |
+| kolesa-team/go-psd                      | HEIC→PNG 変換ライブラリ                                                 | Infrastructure |
+| davidbyttow/govips/v2                   | 画像リサイズ・サムネイル生成                                            | Infrastructure |
+| google.golang.org/grpc                  | Permission Service gRPC クライアント                                    | Infrastructure |
+| aws-sdk-go-v2/service/sqs               | SQS イベント発行                                                        | Infrastructure |
+| uber-go/fx                              | 依存性注入コンテナ                                                      | Infrastructure |
+| uber-go/zap                             | 構造化ログ（JSON形式）                                                  | Infrastructure |
+| go.opentelemetry.io/otel                | 分散トレーシング・W3C Trace Context                                     | Infrastructure |
+| prometheus/client_golang                | メトリクス収集                                                          | Infrastructure |
 
 ### 依存性注入
 
@@ -547,9 +547,9 @@ uber-go/fx を使用。全ポートをインターフェースとして登録。
 ```go
 fx.Provide(
     // Repositories
-    NewPostgreSQLMediaRepository,            // → MediaRepository
-    NewPostgreSQLMediaChunkRepository,       // → MediaChunkRepository
-    NewPostgreSQLProcessingJobRepository,    // → ProcessingJobRepository
+    NewMySQLMediaRepository,            // → MediaRepository
+    NewMySQLMediaChunkRepository,       // → MediaChunkRepository
+    NewMySQLProcessingJobRepository,    // → ProcessingJobRepository
     NewRedisCacheAdapter,                    // → CachePort
     
     // External Service Adapters
@@ -643,7 +643,7 @@ recuerdo-storage-svc/
 │   │   └── batch/
 │   │       └── cleanup_worker.go   # 夜間バッチ（有効期限切れチャンク削除）
 │   └── infrastructure/
-│       ├── postgres/
+│       ├── MySQL/
 │       │   ├── media_repository.go          # MediaRepository 実装
 │       │   ├── media_chunk_repository.go    # MediaChunkRepository 実装
 │       │   ├── processing_job_repository.go # ProcessingJobRepository 実装
@@ -700,18 +700,18 @@ recuerdo-storage-svc/
 
 ### レイヤー別テストピラミッド
 
-| レイヤー | テスト種別 | テストパターン | モック戦略 |
-| --- | --- | --- | --- |
-| Domain (entity/valueobject) | Unit test | MimeType.Validate()・FileSize.Validate()・MediaFile.TransitionTo()・MediaFile.CanBeAccessedBy()・MediaFile.CanBeDeletedBy()・StorageKey 生成・AccessPolicy チェック | 外部依存なし |
-| UseCase | Unit test | UploadMediaSingleUseCase・DeliverMediaUseCase・DeleteMediaUseCase・MergeChunkedUploadUseCase | mockeryで全ポート（MediaRepository・StoragePort・PermissionPort・CachePort・EventPublisherPort）をモック |
-| Adapter (HTTP) | Integration test | POST /api/media/{org_id}/single・GET /api/media/{org_id}/{media_id}・DELETE /api/media/{org_id}/{media_id}・POST /api/media/{org_id}/upload・PUT /api/media/{org_id}/upload/{upload_id}/{chunk_index}・POST /api/media/{org_id}/merge | httptest.Server で上流サービス（Permission Service）をモック。S3・PostgreSQL・Redisは testcontainers-go で実コンテナを起動 |
-| Infrastructure (PostgreSQL) | Integration test | MediaRepository.Save()・GetByID()・ListByOrg()・MediaChunkRepository.DeleteExpired()・ProcessingJobRepository.ListPending() | testcontainers-go で PostgreSQL 14 コンテナを起動 |
-| Infrastructure (S3) | Integration test | S3StorageAdapter.UploadObject()・GeneratePresignedURL()・MergeChunks()・DeleteObject() | testcontainers-go で LocalStack (S3モック) を起動 |
-| Infrastructure (Redis) | Integration test | RedisCacheAdapter.Get()・Set()・Delete()・キャッシュヒット/ミス | testcontainers-go で Redis 7 コンテナを起動 |
-| Infrastructure (asynq) | Integration test | ProcessingJob 投入・ステータス確認・ジョブ完了 | testcontainers-go で Redis + asynq inspector |
-| Processing (HEIC→PNG) | Unit test | HEIC ファイルのPNG変換・形式チェック | テスト画像 (testdata/test_image.heic) |
-| Processing (Thumbnail) | Unit test | 画像リサイズ・長辺1280px制約・アスペクト比保持 | テスト画像各種 |
-| E2E | E2E test | 単一ファイルアップロード→PROCESSING→READY→配信・チャンク型アップロード→マージ→配信・削除 | 実サービス起動（Docker Compose） |
+| レイヤー                    | テスト種別       | テストパターン                                                                                                                                                                                                                        | モック戦略                                                                                                            |
+| --------------------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| Domain (entity/valueobject) | Unit test        | MimeType.Validate()・FileSize.Validate()・MediaFile.TransitionTo()・MediaFile.CanBeAccessedBy()・MediaFile.CanBeDeletedBy()・StorageKey 生成・AccessPolicy チェック                                                                   | 外部依存なし                                                                                                          |
+| UseCase                     | Unit test        | UploadMediaSingleUseCase・DeliverMediaUseCase・DeleteMediaUseCase・MergeChunkedUploadUseCase                                                                                                                                          | mockeryで全ポート（MediaRepository・StoragePort・PermissionPort・CachePort・EventPublisherPort）をモック              |
+| Adapter (HTTP)              | Integration test | POST /api/media/{org_id}/single・GET /api/media/{org_id}/{media_id}・DELETE /api/media/{org_id}/{media_id}・POST /api/media/{org_id}/upload・PUT /api/media/{org_id}/upload/{upload_id}/{chunk_index}・POST /api/media/{org_id}/merge | httptest.Server で上流サービス（Permission Service）をモック。S3・MySQL・Redisは testcontainers-go で実コンテナを起動 |
+| Infrastructure (MySQL)      | Integration test | MediaRepository.Save()・GetByID()・ListByOrg()・MediaChunkRepository.DeleteExpired()・ProcessingJobRepository.ListPending()                                                                                                           | testcontainers-go で MySQL 14 コンテナを起動                                                                          |
+| Infrastructure (S3)         | Integration test | S3StorageAdapter.UploadObject()・GeneratePresignedURL()・MergeChunks()・DeleteObject()                                                                                                                                                | testcontainers-go で LocalStack (S3モック) を起動                                                                     |
+| Infrastructure (Redis)      | Integration test | RedisCacheAdapter.Get()・Set()・Delete()・キャッシュヒット/ミス                                                                                                                                                                       | testcontainers-go で Redis 7 コンテナを起動                                                                           |
+| Infrastructure (asynq)      | Integration test | ProcessingJob 投入・ステータス確認・ジョブ完了                                                                                                                                                                                        | testcontainers-go で Redis + asynq inspector                                                                          |
+| Processing (HEIC→PNG)       | Unit test        | HEIC ファイルのPNG変換・形式チェック                                                                                                                                                                                                  | テスト画像 (testdata/test_image.heic)                                                                                 |
+| Processing (Thumbnail)      | Unit test        | 画像リサイズ・長辺1280px制約・アスペクト比保持                                                                                                                                                                                        | テスト画像各種                                                                                                        |
+| E2E                         | E2E test         | 単一ファイルアップロード→PROCESSING→READY→配信・チャンク型アップロード→マージ→配信・削除                                                                                                                                              | 実サービス起動（Docker Compose）                                                                                      |
 
 ### テストコード例
 
@@ -899,13 +899,13 @@ func TestDeliverMediaUseCase_StatusFailed(t *testing.T) {
 
 // Integration Test
 func TestHTTPMediaHandler_UploadMediaSingle_End2End(t *testing.T) {
-    // testcontainers で PostgreSQL・S3(LocalStack)・Redis を起動
-    db := setupTestPostgres(t)
+    // testcontainers で MySQL・S3(LocalStack)・Redis を起動
+    db := setupTestMySQL(t)
     s3 := setupTestS3(t)
     redis := setupTestRedis(t)
     
     // リポジトリ・ポートを実装で初期化
-    mediaRepo := postgres.NewMediaRepository(db)
+    mediaRepo := MySQL.NewMediaRepository(db)
     storagePort := s3.NewStorageAdapter(s3.Client())
     cachePort := redis.NewCacheAdapter(redis.Client())
     
@@ -1013,47 +1013,47 @@ func TestUploadDeliverDeleteFlow_E2E(t *testing.T) {
 - ErrS3GeneratePresignedURLFailed: Presigned URL 生成失敗
 - ErrProcessingJobFailed: 非同期処理ジョブ（HEIC変換・サムネイル生成）が失敗
 - ErrRedisError: Redisキャッシュ操作失敗
-- ErrDatabaseError: PostgreSQL操作失敗
+- ErrDatabaseError: MySQL操作失敗
 - ErrPermissionServiceUnavailable: Permission Service との通信失敗
 - ErrSQSPublishFailed: イベント発行（SQS）失敗
 
 ### エラー → HTTPステータスマッピング
 
-| ドメインエラー | HTTPステータス | ユーザーメッセージ | 説明 |
-| --- | --- | --- | --- |
-| ErrEmptyFile | 400 Bad Request | File is empty | ファイルサイズ 0 バイト |
-| ErrInvalidMimeType | 400 Bad Request | File type is not supported. Supported types: JPEG, PNG, HEIC, MP4 | サポートされていないファイル形式 |
-| ErrFileTooLarge | 413 Content Too Large | File size exceeds the limit. Max 100 MB for images, 500 MB for videos | ファイルサイズが制限超過 |
-| ErrInvalidFilename | 400 Bad Request | Filename is invalid | ファイル名に無効文字 |
-| ErrMissingOrgID | 400 Bad Request | Organization ID is required | org_id が空 |
-| ErrMissingUploaderID | 401 Unauthorized | User ID is required | uploader_id が空（認証なし） |
-| ErrMediaNotFound | 404 Not Found | Media not found | メディアが見つからない、またはstatus=FAILED |
-| ErrPermissionDenied | 403 Forbidden | You do not have permission to access this media | アクセス権なし |
-| ErrCannotDelete | 403 Forbidden | You do not have permission to delete this media | 削除権限なし |
-| ErrChunkedUploadExpired | 410 Gone | Upload session has expired. Please start a new upload | チャンク有効期限切れ |
-| ErrChunkMissingOrCorrupted | 400 Bad Request | Chunk is missing or corrupted. Please re-upload | チャンク不正 |
-| ErrUploadInProgress | 409 Conflict | Upload is already in progress for this media | 同時アップロード試行 |
-| ErrS3UploadFailed | 503 Service Unavailable | Upload service is temporarily unavailable. Please try again later | S3エラー |
-| ErrS3GeneratePresignedURLFailed | 503 Service Unavailable | Cannot generate download link. Please try again later | Presigned URL生成失敗 |
-| ErrProcessingJobFailed | 500 Internal Server Error | Media processing failed. Please delete and re-upload | 処理失敗 |
-| ErrRedisError | 503 Service Unavailable | Service is temporarily unavailable. Please try again later | Redisエラー |
-| ErrDatabaseError | 503 Service Unavailable | Service is temporarily unavailable. Please try again later | DBエラー |
-| ErrPermissionServiceUnavailable | 503 Service Unavailable | Service is temporarily unavailable. Please try again later | Permission Service 不通 |
-| ErrSQSPublishFailed | 500 Internal Server Error | Event publishing failed | SQS発行失敗 |
+| ドメインエラー                  | HTTPステータス            | ユーザーメッセージ                                                    | 説明                                        |
+| ------------------------------- | ------------------------- | --------------------------------------------------------------------- | ------------------------------------------- |
+| ErrEmptyFile                    | 400 Bad Request           | File is empty                                                         | ファイルサイズ 0 バイト                     |
+| ErrInvalidMimeType              | 400 Bad Request           | File type is not supported. Supported types: JPEG, PNG, HEIC, MP4     | サポートされていないファイル形式            |
+| ErrFileTooLarge                 | 413 Content Too Large     | File size exceeds the limit. Max 100 MB for images, 500 MB for videos | ファイルサイズが制限超過                    |
+| ErrInvalidFilename              | 400 Bad Request           | Filename is invalid                                                   | ファイル名に無効文字                        |
+| ErrMissingOrgID                 | 400 Bad Request           | Organization ID is required                                           | org_id が空                                 |
+| ErrMissingUploaderID            | 401 Unauthorized          | User ID is required                                                   | uploader_id が空（認証なし）                |
+| ErrMediaNotFound                | 404 Not Found             | Media not found                                                       | メディアが見つからない、またはstatus=FAILED |
+| ErrPermissionDenied             | 403 Forbidden             | You do not have permission to access this media                       | アクセス権なし                              |
+| ErrCannotDelete                 | 403 Forbidden             | You do not have permission to delete this media                       | 削除権限なし                                |
+| ErrChunkedUploadExpired         | 410 Gone                  | Upload session has expired. Please start a new upload                 | チャンク有効期限切れ                        |
+| ErrChunkMissingOrCorrupted      | 400 Bad Request           | Chunk is missing or corrupted. Please re-upload                       | チャンク不正                                |
+| ErrUploadInProgress             | 409 Conflict              | Upload is already in progress for this media                          | 同時アップロード試行                        |
+| ErrS3UploadFailed               | 503 Service Unavailable   | Upload service is temporarily unavailable. Please try again later     | S3エラー                                    |
+| ErrS3GeneratePresignedURLFailed | 503 Service Unavailable   | Cannot generate download link. Please try again later                 | Presigned URL生成失敗                       |
+| ErrProcessingJobFailed          | 500 Internal Server Error | Media processing failed. Please delete and re-upload                  | 処理失敗                                    |
+| ErrRedisError                   | 503 Service Unavailable   | Service is temporarily unavailable. Please try again later            | Redisエラー                                 |
+| ErrDatabaseError                | 503 Service Unavailable   | Service is temporarily unavailable. Please try again later            | DBエラー                                    |
+| ErrPermissionServiceUnavailable | 503 Service Unavailable   | Service is temporarily unavailable. Please try again later            | Permission Service 不通                     |
+| ErrSQSPublishFailed             | 500 Internal Server Error | Event publishing failed                                               | SQS発行失敗                                 |
 
 ## 9. 未決事項
 
 ### 質問・決定事項
 
-| # | 質問 | ステータス | 決定 |
-| --- | --- | --- | --- |
-| 1 | 画像最適化（JPEG圧縮率・PNG圧縮レベル）の決定。ファイルサイズとクオリティのトレードオフをどこに設定するか。特にWebP対応の時期はいつか | Open | 未決定。初期は PNG 圧縮レベル 6（デフォルト）で運用開始。WebP対応は別タスク |
-| 2 | HEIC ファイルの変換先は PNG のみか、それとも JPEG も選択肢とするか。ユーザーに選択肢を提供するか | Open | 未決定。初期は PNG 固定。ユーザー選択は future work |
-| 3 | サムネイル長辺 1280px は固定か。デバイス種別（モバイル vs デスクトップ）ごとに複数解像度を生成すべきか | Open | 未決定。1280px 単一解像度で開始。複数解像度対応は実装後に需要を確認してから検討 |
-| 4 | チャンク型アップロードのチャンクサイズはいくつに設定するか。5MB・10MB・20MB どれか | Open | 未決定。初期は 5MB で設定。ネットワーク環境とリトライアビリティのバランスを取る |
-| 5 | Presigned URL のキャッシュ TTL 50分（TTL < 有効期限60分）は安全か。メディアアクセス権の変更（access_policy 変更・delete）直後に古い URL が機能することはないか | Open | 未決定。access_policy 変更時はキャッシュを明示的に削除する運用で対応予定 |
-| 6 | 削除したメディアの S3 ファイル（original/optimized/thumb）をいつ消去するか。論理削除（soft delete）のままリテンション期間を設けるか | Open | 未決定。初期は物理削除（immediate）。将来的に GDPR 対応で遅延削除を検討 |
-| 7 | 非同期処理ジョブ（HEIC_CONVERT・THUMBNAIL_GEN）の失敗時リトライ戦略。最大リトライ回数・指数バックオフ設定はいくつか | Open | 未決定。初期は最大 3 回リトライ、初期遅延 5秒から最大 60秒まで指数バックオフ |
-| 8 | Permission Service がダウン時のメディアアクセス制御の Fail-Open 緊急モード。有効にすべきか、それとも Fail-Closed（全拒否）か | Open | 未決定。初期は Fail-Closed（セキュリティ優先）。パフォーマンス要件に応じて見直し |
-| 9 | ビデオメディアのプログレッシブダウンロード（Range リクエスト対応）が必要か。Presigned URL 経由で AWS S3 が自動対応するので不要か | Open | 未決定。S3 が Range 対応済みなため、サービス層で追加実装は不要と判断。将来の CDN キャッシュ導入時に再検討 |
-| 10 | ストレージコスト削減のため古いメディアを S3 Glacier へ自動遷移させるか。遷移開始時期（作成後 30日？90日？）を設定すべきか | Open | 未決定。S3 Lifecycle Policy で 90日後に Glacier へ遷移する方針で検討中。ユーザー告知必要 |
+| #   | 質問                                                                                                                                                           | ステータス | 決定                                                                                                      |
+| --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- | --------------------------------------------------------------------------------------------------------- |
+| 1   | 画像最適化（JPEG圧縮率・PNG圧縮レベル）の決定。ファイルサイズとクオリティのトレードオフをどこに設定するか。特にWebP対応の時期はいつか                          | Open       | 未決定。初期は PNG 圧縮レベル 6（デフォルト）で運用開始。WebP対応は別タスク                               |
+| 2   | HEIC ファイルの変換先は PNG のみか、それとも JPEG も選択肢とするか。ユーザーに選択肢を提供するか                                                               | Open       | 未決定。初期は PNG 固定。ユーザー選択は future work                                                       |
+| 3   | サムネイル長辺 1280px は固定か。デバイス種別（モバイル vs デスクトップ）ごとに複数解像度を生成すべきか                                                         | Open       | 未決定。1280px 単一解像度で開始。複数解像度対応は実装後に需要を確認してから検討                           |
+| 4   | チャンク型アップロードのチャンクサイズはいくつに設定するか。5MB・10MB・20MB どれか                                                                             | Open       | 未決定。初期は 5MB で設定。ネットワーク環境とリトライアビリティのバランスを取る                           |
+| 5   | Presigned URL のキャッシュ TTL 50分（TTL < 有効期限60分）は安全か。メディアアクセス権の変更（access_policy 変更・delete）直後に古い URL が機能することはないか | Open       | 未決定。access_policy 変更時はキャッシュを明示的に削除する運用で対応予定                                  |
+| 6   | 削除したメディアの S3 ファイル（original/optimized/thumb）をいつ消去するか。論理削除（soft delete）のままリテンション期間を設けるか                            | Open       | 未決定。初期は物理削除（immediate）。将来的に GDPR 対応で遅延削除を検討                                   |
+| 7   | 非同期処理ジョブ（HEIC_CONVERT・THUMBNAIL_GEN）の失敗時リトライ戦略。最大リトライ回数・指数バックオフ設定はいくつか                                            | Open       | 未決定。初期は最大 3 回リトライ、初期遅延 5秒から最大 60秒まで指数バックオフ                              |
+| 8   | Permission Service がダウン時のメディアアクセス制御の Fail-Open 緊急モード。有効にすべきか、それとも Fail-Closed（全拒否）か                                   | Open       | 未決定。初期は Fail-Closed（セキュリティ優先）。パフォーマンス要件に応じて見直し                          |
+| 9   | ビデオメディアのプログレッシブダウンロード（Range リクエスト対応）が必要か。Presigned URL 経由で AWS S3 が自動対応するので不要か                               | Open       | 未決定。S3 が Range 対応済みなため、サービス層で追加実装は不要と判断。将来の CDN キャッシュ導入時に再検討 |
+| 10  | ストレージコスト削減のため古いメディアを S3 Glacier へ自動遷移させるか。遷移開始時期（作成後 30日？90日？）を設定すべきか                                      | Open       | 未決定。S3 Lifecycle Policy で 90日後に Glacier へ遷移する方針で検討中。ユーザー告知必要                  |

@@ -28,23 +28,23 @@ Key User Stories:
 
 ### ドメインモデル
 
-| エンティティ | 説明 | 主要属性 |
-| --- | --- | --- |
-| Event | イベント。組織内の思い出の瞬間を示す | id (ULID), org_id, title, description?, start_date, end_date, status (DRAFT/ACTIVE/ARCHIVED), event_code (unique per org), cover_media_id?, created_by, created_at, updated_at |
-| EventInvitation | イベントへのメンバー招待。メールアドレスベース | id (ULID), event_id, org_id, email, invited_by, role (MEMBER/GUEST), status (PENDING/ACCEPTED/DECLINED/EXPIRED), invited_at, responded_at?, accepted_user_id?, expires_at |
-| EventCode | イベント参加用コード。ユニークでメモ可能な形式（e.g. "SUMMER-PARTY-2026"） | code (slug format), event_id, org_id, is_active, created_at |
-| EventParticipant | イベント参加実績。招待受理・コード参加ユーザーを統一的に管理 | id (ULID), event_id, org_id, user_id, email, role (OWNER/ADMIN/MEMBER/GUEST), joined_via (INVITATION/EVENT_CODE/DIRECT), joined_at, last_activity_at |
+| エンティティ     | 説明                                                                       | 主要属性                                                                                                                                                                       |
+| ---------------- | -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Event            | イベント。組織内の思い出の瞬間を示す                                       | id (ULID), org_id, title, description?, start_date, end_date, status (DRAFT/ACTIVE/ARCHIVED), event_code (unique per org), cover_media_id?, created_by, created_at, updated_at |
+| EventInvitation  | イベントへのメンバー招待。メールアドレスベース                             | id (ULID), event_id, org_id, email, invited_by, role (MEMBER/GUEST), status (PENDING/ACCEPTED/DECLINED/EXPIRED), invited_at, responded_at?, accepted_user_id?, expires_at      |
+| EventCode        | イベント参加用コード。ユニークでメモ可能な形式（e.g. "SUMMER-PARTY-2026"） | code (slug format), event_id, org_id, is_active, created_at                                                                                                                    |
+| EventParticipant | イベント参加実績。招待受理・コード参加ユーザーを統一的に管理               | id (ULID), event_id, org_id, user_id, email, role (OWNER/ADMIN/MEMBER/GUEST), joined_via (INVITATION/EVENT_CODE/DIRECT), joined_at, last_activity_at                           |
 
 ### 値オブジェクト
 
-| 値オブジェクト | 説明 | バリデーションルール |
-| --- | --- | --- |
-| EventStatus | イベントの状態遷移 | DRAFT (下書き) → ACTIVE (公開) → ARCHIVED (終了・アーカイブ). 逆遷移不可 |
-| InvitationStatus | 招待の回答状態 | PENDING (未返答) → ACCEPTED/DECLINED/EXPIRED. 一度返答されたら変更不可。期限切れ自動遷移あり |
-| EventCode | イベント参加コード。人間が入力可能な形式 | 大文字英数字ハイフン。最大30文字。org内でユニーク。大文字のみ (e.g. "SUMMER-PARTY-2026") |
-| EventRole | イベント内のメンバー権限 | OWNER (作成者、全権), ADMIN (管理者、メンバー管理), MEMBER (一般メンバー), GUEST (ゲスト、読取のみ) |
-| EventDateRange | イベント期間の妥当性チェック | start_date < end_date 必須。過去日付も許可（思い出イベント用） |
-| InvitationEmail | 招待メールアドレス | RFC 5321準拠の妥当なメール形式 |
+| 値オブジェクト   | 説明                                     | バリデーションルール                                                                                |
+| ---------------- | ---------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| EventStatus      | イベントの状態遷移                       | DRAFT (下書き) → ACTIVE (公開) → ARCHIVED (終了・アーカイブ). 逆遷移不可                            |
+| InvitationStatus | 招待の回答状態                           | PENDING (未返答) → ACCEPTED/DECLINED/EXPIRED. 一度返答されたら変更不可。期限切れ自動遷移あり        |
+| EventCode        | イベント参加コード。人間が入力可能な形式 | 大文字英数字ハイフン。最大30文字。org内でユニーク。大文字のみ (e.g. "SUMMER-PARTY-2026")            |
+| EventRole        | イベント内のメンバー権限                 | OWNER (作成者、全権), ADMIN (管理者、メンバー管理), MEMBER (一般メンバー), GUEST (ゲスト、読取のみ) |
+| EventDateRange   | イベント期間の妥当性チェック             | start_date < end_date 必須。過去日付も許可（思い出イベント用）                                      |
+| InvitationEmail  | 招待メールアドレス                       | RFC 5321準拠の妥当なメール形式                                                                      |
 
 ### ドメインルール / 不変条件
 
@@ -64,17 +64,17 @@ Key User Stories:
 
 ### ドメインイベント
 
-| イベント | トリガー | 主要ペイロード |
-| --- | --- | --- |
-| EventCreated | イベント作成完了時 | event_id, org_id, title, created_by, status, start_date, end_date, created_at, timestamp |
-| EventStatusChanged | イベントステータス遷移時（DRAFT→ACTIVE等） | event_id, org_id, old_status, new_status, changed_by, changed_at, timestamp |
-| EventArchived | イベントアーカイブ時（ACTIVE→ARCHIVED） | event_id, org_id, archived_by, archived_at, participant_count, timestamp |
-| EventInvitationSent | メンバー招待実行時 | event_id, org_id, invitation_id, email, invited_by, role, expires_at, timestamp |
-| EventInvitationAccepted | 招待受理時 | event_id, org_id, invitation_id, email, accepted_user_id, accepted_at, timestamp |
-| EventInvitationDeclined | 招待拒否時 | event_id, org_id, invitation_id, email, declined_at, timestamp |
-| EventInvitationExpired | 招待期限切れ時 | event_id, org_id, invitation_id, email, expired_at, timestamp |
-| EventCodeCreated | イベント参加コード生成時 | event_id, org_id, event_code, created_by, created_at, timestamp |
-| UserJoinedEventByCode | ユーザーがコードでイベント参加時 | event_id, org_id, user_id, email, event_code, joined_at, timestamp |
+| イベント                | トリガー                                   | 主要ペイロード                                                                           |
+| ----------------------- | ------------------------------------------ | ---------------------------------------------------------------------------------------- |
+| EventCreated            | イベント作成完了時                         | event_id, org_id, title, created_by, status, start_date, end_date, created_at, timestamp |
+| EventStatusChanged      | イベントステータス遷移時（DRAFT→ACTIVE等） | event_id, org_id, old_status, new_status, changed_by, changed_at, timestamp              |
+| EventArchived           | イベントアーカイブ時（ACTIVE→ARCHIVED）    | event_id, org_id, archived_by, archived_at, participant_count, timestamp                 |
+| EventInvitationSent     | メンバー招待実行時                         | event_id, org_id, invitation_id, email, invited_by, role, expires_at, timestamp          |
+| EventInvitationAccepted | 招待受理時                                 | event_id, org_id, invitation_id, email, accepted_user_id, accepted_at, timestamp         |
+| EventInvitationDeclined | 招待拒否時                                 | event_id, org_id, invitation_id, email, declined_at, timestamp                           |
+| EventInvitationExpired  | 招待期限切れ時                             | event_id, org_id, invitation_id, email, expired_at, timestamp                            |
+| EventCodeCreated        | イベント参加コード生成時                   | event_id, org_id, event_code, created_by, created_at, timestamp                          |
+| UserJoinedEventByCode   | ユーザーがコードでイベント参加時           | event_id, org_id, user_id, email, event_code, joined_at, timestamp                       |
 
 ### エンティティ定義（コードスケッチ）
 
@@ -260,24 +260,24 @@ func (r EventRole) CanEdit() bool {
 
 ### ユースケース一覧
 
-| ユースケース | 入力DTO | 出力DTO | 説明 |
-| --- | --- | --- | --- |
-| CreateEvent | CreateEventInput{org_id, title, start_date, end_date, description?, cover_media_id?} | CreateEventOutput{event_id, event_code, status} | 新規イベント作成。DRAFTステータスで開始。EventCodeは自動生成 |
-| UpdateEvent | UpdateEventInput{event_id, org_id, title?, start_date?, end_date?, description?, cover_media_id?} | UpdateEventOutput{event, updated_fields} | イベント情報更新。ARCHIVEDイベントは更新不可 |
-| ActivateEvent | ActivateEventInput{event_id, org_id} | ActivateEventOutput{event, activated_at} | DRAFTイベントをACTIVEに遷移。titleが必須 |
-| ArchiveEvent | ArchiveEventInput{event_id, org_id} | ArchiveEventOutput{event, archived_at, participant_count} | イベントをアーカイブ（ARCHIVED）。読取専用に遷移 |
-| GetEvent | GetEventInput{event_id, org_id} | GetEventOutput{event, participant_count, invitation_count} | イベント詳細を取得 |
-| ListEventsByOrg | ListEventsByOrgInput{org_id, status?, limit, offset} | ListEventsByOrgOutput{events[], total_count, has_more} | 組織内のイベント一覧を取得。ステータスフィルタ可能 |
-| InviteMemberByEmail | InviteMemberByEmailInput{event_id, org_id, email, role, invited_by} | InviteMemberByEmailOutput{invitation_id, expires_at} | メンバーをメールアドレスで招待。Notification Serviceへ委譲 |
-| RespondToInvitation | RespondToInvitationInput{invitation_id, org_id, response (ACCEPT/DECLINE), user_id?, email} | RespondToInvitationOutput{invitation, user_id, event_id} | 招待に返答。ACCEPT時はEventParticipantに追加 |
-| JoinEventByCode | JoinEventByCodeInput{event_code, org_id, user_id, email} | JoinEventByCodeOutput{event, participant_id, role} | イベントコードを使用してイベントに参加 |
-| ListEventInvitations | ListEventInvitationsInput{event_id, org_id, status?, limit, offset} | ListEventInvitationsOutput{invitations[], total_count} | イベントへの招待一覧を取得 |
-| ListEventParticipants | ListEventParticipantsInput{event_id, org_id, limit, offset} | ListEventParticipantsOutput{participants[], total_count} | イベント参加メンバー一覧を取得 |
-| GetEventCode | GetEventCodeInput{event_id, org_id} | GetEventCodeOutput{event_code, is_active} | イベント参加コードを取得 |
-| RegenerateEventCode | RegenerateEventCodeInput{event_id, org_id, regenerated_by} | RegenerateEventCodeOutput{new_code, old_code, regenerated_at} | 参加コードを再生成（セキュリティ目的） |
-| RemoveParticipant | RemoveParticipantInput{event_id, org_id, participant_id, removed_by} | RemoveParticipantOutput{participant, removed_at} | メンバーをイベントから削除 |
-| GetUserEvents | GetUserEventsInput{user_id, org_id, status?} | GetUserEventsOutput{events[], total_count} | ユーザーが参加しているイベント一覧を取得 |
-| ExpireOldInvitations | ExpireOldInvitationsInput{batch_size} | ExpireOldInvitationsOutput{expired_count, timestamp} | 期限切れ招待をバッチで自動遷移（スケジュール実行） |
+| ユースケース          | 入力DTO                                                                                           | 出力DTO                                                       | 説明                                                         |
+| --------------------- | ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- | ------------------------------------------------------------ |
+| CreateEvent           | CreateEventInput{org_id, title, start_date, end_date, description?, cover_media_id?}              | CreateEventOutput{event_id, event_code, status}               | 新規イベント作成。DRAFTステータスで開始。EventCodeは自動生成 |
+| UpdateEvent           | UpdateEventInput{event_id, org_id, title?, start_date?, end_date?, description?, cover_media_id?} | UpdateEventOutput{event, updated_fields}                      | イベント情報更新。ARCHIVEDイベントは更新不可                 |
+| ActivateEvent         | ActivateEventInput{event_id, org_id}                                                              | ActivateEventOutput{event, activated_at}                      | DRAFTイベントをACTIVEに遷移。titleが必須                     |
+| ArchiveEvent          | ArchiveEventInput{event_id, org_id}                                                               | ArchiveEventOutput{event, archived_at, participant_count}     | イベントをアーカイブ（ARCHIVED）。読取専用に遷移             |
+| GetEvent              | GetEventInput{event_id, org_id}                                                                   | GetEventOutput{event, participant_count, invitation_count}    | イベント詳細を取得                                           |
+| ListEventsByOrg       | ListEventsByOrgInput{org_id, status?, limit, offset}                                              | ListEventsByOrgOutput{events[], total_count, has_more}        | 組織内のイベント一覧を取得。ステータスフィルタ可能           |
+| InviteMemberByEmail   | InviteMemberByEmailInput{event_id, org_id, email, role, invited_by}                               | InviteMemberByEmailOutput{invitation_id, expires_at}          | メンバーをメールアドレスで招待。Notification Serviceへ委譲   |
+| RespondToInvitation   | RespondToInvitationInput{invitation_id, org_id, response (ACCEPT/DECLINE), user_id?, email}       | RespondToInvitationOutput{invitation, user_id, event_id}      | 招待に返答。ACCEPT時はEventParticipantに追加                 |
+| JoinEventByCode       | JoinEventByCodeInput{event_code, org_id, user_id, email}                                          | JoinEventByCodeOutput{event, participant_id, role}            | イベントコードを使用してイベントに参加                       |
+| ListEventInvitations  | ListEventInvitationsInput{event_id, org_id, status?, limit, offset}                               | ListEventInvitationsOutput{invitations[], total_count}        | イベントへの招待一覧を取得                                   |
+| ListEventParticipants | ListEventParticipantsInput{event_id, org_id, limit, offset}                                       | ListEventParticipantsOutput{participants[], total_count}      | イベント参加メンバー一覧を取得                               |
+| GetEventCode          | GetEventCodeInput{event_id, org_id}                                                               | GetEventCodeOutput{event_code, is_active}                     | イベント参加コードを取得                                     |
+| RegenerateEventCode   | RegenerateEventCodeInput{event_id, org_id, regenerated_by}                                        | RegenerateEventCodeOutput{new_code, old_code, regenerated_at} | 参加コードを再生成（セキュリティ目的）                       |
+| RemoveParticipant     | RemoveParticipantInput{event_id, org_id, participant_id, removed_by}                              | RemoveParticipantOutput{participant, removed_at}              | メンバーをイベントから削除                                   |
+| GetUserEvents         | GetUserEventsInput{user_id, org_id, status?}                                                      | GetUserEventsOutput{events[], total_count}                    | ユーザーが参加しているイベント一覧を取得                     |
+| ExpireOldInvitations  | ExpireOldInvitationsInput{batch_size}                                                             | ExpireOldInvitationsOutput{expired_count, timestamp}          | 期限切れ招待をバッチで自動遷移（スケジュール実行）           |
 
 ### ユースケース詳細（主要ユースケース）
 
@@ -480,43 +480,43 @@ type EventPublisherPort interface {
 
 ### コントローラ / ハンドラ
 
-| コントローラ | ルート/トリガー | ユースケース |
-| --- | --- | --- |
-| EventHTTPHandler | POST /api/orgs/{org_id}/events | CreateEventUseCase |
-| EventHTTPHandler | GET /api/orgs/{org_id}/events | ListEventsByOrgUseCase |
-| EventHTTPHandler | GET /api/orgs/{org_id}/events/{event_id} | GetEventUseCase |
-| EventHTTPHandler | PUT /api/orgs/{org_id}/events/{event_id} | UpdateEventUseCase |
-| EventHTTPHandler | POST /api/orgs/{org_id}/events/{event_id}/activate | ActivateEventUseCase |
-| EventHTTPHandler | POST /api/orgs/{org_id}/events/{event_id}/archive | ArchiveEventUseCase |
-| InvitationHTTPHandler | POST /api/orgs/{org_id}/events/{event_id}/invitations | InviteMemberByEmailUseCase |
-| InvitationHTTPHandler | GET /api/orgs/{org_id}/events/{event_id}/invitations | ListEventInvitationsUseCase |
-| InvitationHTTPHandler | POST /api/invitations/{invitation_id}/respond | RespondToInvitationUseCase |
-| ParticipantHTTPHandler | GET /api/orgs/{org_id}/events/{event_id}/participants | ListEventParticipantsUseCase |
-| ParticipantHTTPHandler | DELETE /api/orgs/{org_id}/events/{event_id}/participants/{participant_id} | RemoveParticipantUseCase |
-| EventCodeHTTPHandler | GET /api/orgs/{org_id}/events/{event_id}/code | GetEventCodeUseCase |
-| EventCodeHTTPHandler | POST /api/orgs/{org_id}/events/{event_id}/regenerate-code | RegenerateEventCodeUseCase |
-| JoinHTTPHandler | POST /api/events/join/{event_code} | JoinEventByCodeUseCase |
-| UserEventsHTTPHandler | GET /api/users/{user_id}/events | GetUserEventsUseCase |
-| ScheduledTaskHandler | Cron job (daily 00:00 UTC) | ExpireOldInvitationsUseCase |
+| コントローラ           | ルート/トリガー                                                           | ユースケース                 |
+| ---------------------- | ------------------------------------------------------------------------- | ---------------------------- |
+| EventHTTPHandler       | POST /api/orgs/{org_id}/events                                            | CreateEventUseCase           |
+| EventHTTPHandler       | GET /api/orgs/{org_id}/events                                             | ListEventsByOrgUseCase       |
+| EventHTTPHandler       | GET /api/orgs/{org_id}/events/{event_id}                                  | GetEventUseCase              |
+| EventHTTPHandler       | PUT /api/orgs/{org_id}/events/{event_id}                                  | UpdateEventUseCase           |
+| EventHTTPHandler       | POST /api/orgs/{org_id}/events/{event_id}/activate                        | ActivateEventUseCase         |
+| EventHTTPHandler       | POST /api/orgs/{org_id}/events/{event_id}/archive                         | ArchiveEventUseCase          |
+| InvitationHTTPHandler  | POST /api/orgs/{org_id}/events/{event_id}/invitations                     | InviteMemberByEmailUseCase   |
+| InvitationHTTPHandler  | GET /api/orgs/{org_id}/events/{event_id}/invitations                      | ListEventInvitationsUseCase  |
+| InvitationHTTPHandler  | POST /api/invitations/{invitation_id}/respond                             | RespondToInvitationUseCase   |
+| ParticipantHTTPHandler | GET /api/orgs/{org_id}/events/{event_id}/participants                     | ListEventParticipantsUseCase |
+| ParticipantHTTPHandler | DELETE /api/orgs/{org_id}/events/{event_id}/participants/{participant_id} | RemoveParticipantUseCase     |
+| EventCodeHTTPHandler   | GET /api/orgs/{org_id}/events/{event_id}/code                             | GetEventCodeUseCase          |
+| EventCodeHTTPHandler   | POST /api/orgs/{org_id}/events/{event_id}/regenerate-code                 | RegenerateEventCodeUseCase   |
+| JoinHTTPHandler        | POST /api/events/join/{event_code}                                        | JoinEventByCodeUseCase       |
+| UserEventsHTTPHandler  | GET /api/users/{user_id}/events                                           | GetUserEventsUseCase         |
+| ScheduledTaskHandler   | Cron job (daily 00:00 UTC)                                                | ExpireOldInvitationsUseCase  |
 
 ### リポジトリ実装
 
-| ポートインターフェース | 実装クラス | データストア |
-| --- | --- | --- |
-| EventRepository | PostgreSQLEventRepository | PostgreSQL 14+ (events table) |
-| EventInvitationRepository | PostgreSQLEventInvitationRepository | PostgreSQL 14+ (event_invitations table) |
-| EventCodeRepository | PostgreSQLEventCodeRepository | PostgreSQL 14+ (event_codes table) |
-| EventParticipantRepository | PostgreSQLEventParticipantRepository | PostgreSQL 14+ (event_participants table) |
+| ポートインターフェース     | 実装クラス                      | データストア                         |
+| -------------------------- | ------------------------------- | ------------------------------------ |
+| EventRepository            | MySQLEventRepository            | MySQL 14+ (events table)             |
+| EventInvitationRepository  | MySQLEventInvitationRepository  | MySQL 14+ (event_invitations table)  |
+| EventCodeRepository        | MySQLEventCodeRepository        | MySQL 14+ (event_codes table)        |
+| EventParticipantRepository | MySQLEventParticipantRepository | MySQL 14+ (event_participants table) |
 
 ### 外部サービスアダプタ
 
-| ポートインターフェース | アダプタクラス | 外部システム |
-| --- | --- | --- |
-| PermissionPort | PermissionServiceGRPCAdapter | recuerdo-permission-svc (gRPC) |
-| EventCodeGeneratorPort | UUIDSlugCodeGenerator | 内部実装（タイトル + ランダム部で生成） |
-| NotificationPort | NotificationServiceSQSAdapter | AWS SQS + recuerdo-notification-svc (非同期) |
-| AuthServicePort | AuthServiceGRPCAdapter | recuerdo-auth-svc (gRPC) |
-| EventPublisherPort | SQSEventPublisher | AWS SQS (recuerdo-events-service-events) |
+| ポートインターフェース | アダプタクラス                | 外部システム                                 |
+| ---------------------- | ----------------------------- | -------------------------------------------- |
+| PermissionPort         | PermissionServiceGRPCAdapter  | recuerdo-permission-svc (gRPC)               |
+| EventCodeGeneratorPort | UUIDSlugCodeGenerator         | 内部実装（タイトル + ランダム部で生成）      |
+| NotificationPort       | NotificationServiceSQSAdapter | AWS SQS + recuerdo-notification-svc (非同期) |
+| AuthServicePort        | AuthServiceGRPCAdapter        | recuerdo-auth-svc (gRPC)                     |
+| EventPublisherPort     | SQSEventPublisher             | AWS SQS (recuerdo-events-service-events)     |
 
 ## 5. インフラストラクチャ層
 
@@ -526,7 +526,7 @@ Go 1.22 + net/http (HTTPサーバー) + gorilla/mux (ルーティング)
 
 ### データベース
 
-PostgreSQL 14+
+MySQL 14+
 
 **テーブル定義:**
 
@@ -618,19 +618,19 @@ CREATE INDEX idx_participants_org_user ON event_participants(org_id, user_id);
 
 ### 主要ライブラリ・SDK
 
-| ライブラリ | 目的 | レイヤー |
-| --- | --- | --- |
-| github.com/lib/pq | PostgreSQL ドライバ | Infrastructure |
-| github.com/jmoiron/sqlc | SQL→Go型安全コード生成 | Infrastructure |
-| oklog/ulid | ULID生成・パース | Domain / Infrastructure |
-| github.com/google/uuid | UUID生成 | Infrastructure |
-| google.golang.org/grpc | gRPC クライアント（Permission・Auth Service） | Infrastructure |
-| aws-sdk-go-v2/service/sqs | SQS イベント発行 | Infrastructure |
-| github.com/gorilla/mux | HTTP ルーティング | Adapter |
-| uber-go/fx | 依存性注入 | Infrastructure |
-| uber-go/zap | 構造化ログ | Infrastructure |
-| go.opentelemetry.io/otel | 分散トレーシング | Infrastructure |
-| github.com/prometheus/client_golang | メトリクス収集 | Infrastructure |
+| ライブラリ                          | 目的                                          | レイヤー                |
+| ----------------------------------- | --------------------------------------------- | ----------------------- |
+| github.com/lib/pq                   | MySQL ドライバ                                | Infrastructure          |
+| github.com/jmoiron/sqlc             | SQL→Go型安全コード生成                        | Infrastructure          |
+| oklog/ulid                          | ULID生成・パース                              | Domain / Infrastructure |
+| github.com/google/uuid              | UUID生成                                      | Infrastructure          |
+| google.golang.org/grpc              | gRPC クライアント（Permission・Auth Service） | Infrastructure          |
+| aws-sdk-go-v2/service/sqs           | SQS イベント発行                              | Infrastructure          |
+| github.com/gorilla/mux              | HTTP ルーティング                             | Adapter                 |
+| uber-go/fx                          | 依存性注入                                    | Infrastructure          |
+| uber-go/zap                         | 構造化ログ                                    | Infrastructure          |
+| go.opentelemetry.io/otel            | 分散トレーシング                              | Infrastructure          |
+| github.com/prometheus/client_golang | メトリクス収集                                | Infrastructure          |
 
 ### 依存性注入
 
@@ -639,10 +639,10 @@ uber-go/fx を使用。全ポートをインターフェースとして登録。
 ```go
 fx.Provide(
     // Repositories
-    NewPostgreSQLEventRepository,           // → EventRepository
-    NewPostgreSQLEventInvitationRepository, // → EventInvitationRepository
-    NewPostgreSQLEventCodeRepository,       // → EventCodeRepository
-    NewPostgreSQLEventParticipantRepository,// → EventParticipantRepository
+    NewMySQLEventRepository,           // → EventRepository
+    NewMySQLEventInvitationRepository, // → EventInvitationRepository
+    NewMySQLEventCodeRepository,       // → EventCodeRepository
+    NewMySQLEventParticipantRepository,// → EventParticipantRepository
     
     // Service Adapters
     NewPermissionServiceGRPCAdapter,  // → PermissionPort
@@ -744,7 +744,7 @@ recuerdo-events-svc/
 │   │   └── sqs_consumer/
 │   │       └── invitation_expiration_consumer.go
 │   └── infrastructure/
-│       ├── postgres/
+│       ├── MySQL/
 │       │   ├── db.go
 │       │   ├── event_repo.go
 │       │   ├── event_invitation_repo.go
@@ -786,14 +786,14 @@ recuerdo-events-svc/
 
 ### レイヤー別テストピラミッド
 
-| レイヤー | テスト種別 | モック戦略 | 対象 |
-| --- | --- | --- | --- |
-| Domain (entity/valueobject) | Unit test | 外部依存なし | Event.Validate(), EventCode.NewEventCode(), EventInvitation.Accept(), EventRole.CanInvite() |
-| UseCase | Unit test | mockeryで全ポート（PermissionPort/NotificationPort等）をモック | CreateEventUseCase, InviteMemberByEmailUseCase, RespondToInvitationUseCase |
-| Adapter (HTTP) | Integration test | httptest.Server + モック下流サービス | POST /api/orgs/{org_id}/events, GET /api/events/join/{code} |
-| Infrastructure (PostgreSQL) | Integration test | testcontainers-go でPostgres14コンテナを起動 | EventRepository.Create(), EventInvitationRepository.ListExpiredPending() |
-| E2E | E2E test | PostgreSQL + SQS (LocalStack) + gRPC モック | イベント作成→招待→返答→参加の完全シナリオ |
-| Security test | Penetration test | OWASP ZAP + カスタム検証 | SQL injection, authorization bypass, code enumeration |
+| レイヤー                    | テスト種別       | モック戦略                                                     | 対象                                                                                        |
+| --------------------------- | ---------------- | -------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| Domain (entity/valueobject) | Unit test        | 外部依存なし                                                   | Event.Validate(), EventCode.NewEventCode(), EventInvitation.Accept(), EventRole.CanInvite() |
+| UseCase                     | Unit test        | mockeryで全ポート（PermissionPort/NotificationPort等）をモック | CreateEventUseCase, InviteMemberByEmailUseCase, RespondToInvitationUseCase                  |
+| Adapter (HTTP)              | Integration test | httptest.Server + モック下流サービス                           | POST /api/orgs/{org_id}/events, GET /api/events/join/{code}                                 |
+| Infrastructure (MySQL)      | Integration test | testcontainers-go でMySQL14コンテナを起動                      | EventRepository.Create(), EventInvitationRepository.ListExpiredPending()                    |
+| E2E                         | E2E test         | MySQL + SQS (LocalStack) + gRPC モック                         | イベント作成→招待→返答→参加の完全シナリオ                                                   |
+| Security test               | Penetration test | OWASP ZAP + カスタム検証                                       | SQL injection, authorization bypass, code enumeration                                       |
 
 ### テストコード例
 
@@ -930,10 +930,10 @@ func TestEventRepository_Create_InsertAndRetrieve(t *testing.T) {
         t.Skip("Skipping integration test in short mode")
     }
     
-    container, db := setupPostgresContainer(t)
+    container, db := setupMySQLContainer(t)
     defer container.Terminate(context.Background())
     
-    repo := NewPostgreSQLEventRepository(db)
+    repo := NewMySQLEventRepository(db)
     
     event := &Event{
         ID:        ulid.Make().String(),
@@ -961,10 +961,10 @@ func TestEventInvitationRepository_ListExpiredPending(t *testing.T) {
         t.Skip("Skipping integration test in short mode")
     }
     
-    container, db := setupPostgresContainer(t)
+    container, db := setupMySQLContainer(t)
     defer container.Terminate(context.Background())
     
-    repo := NewPostgreSQLEventInvitationRepository(db)
+    repo := NewMySQLEventInvitationRepository(db)
     
     now := time.Now()
     expiredInvitation := &EventInvitation{
@@ -1013,33 +1013,33 @@ func TestEventInvitationRepository_ListExpiredPending(t *testing.T) {
 
 ### エラー → HTTPステータスマッピング
 
-| ドメインエラー | HTTPステータス | レスポンス例 |
-| --- | --- | --- |
-| ErrEventTitleRequired | 400 Bad Request | `{"error": "Event title is required"}` |
-| ErrInvalidDateRange | 400 Bad Request | `{"error": "Start date must be before end date"}` |
-| ErrEventNotFound | 404 Not Found | `{"error": "Event not found"}` |
-| ErrCannotInviteToArchivedEvent | 400 Bad Request | `{"error": "Cannot invite members to archived event"}` |
-| ErrInvalidEmail | 400 Bad Request | `{"error": "Invalid email address"}` |
-| ErrAlreadyInvited | 409 Conflict | `{"error": "User already invited to this event"}` |
-| ErrCannotRespondToInvitation | 400 Bad Request | `{"error": "Cannot respond to expired or already answered invitation"}` |
-| ErrAlreadyParticipant | 409 Conflict | `{"error": "User is already a participant of this event"}` |
-| ErrUnauthorized | 403 Forbidden | `{"error": "You do not have permission to perform this action"}` |
-| ErrInvitationNotFound | 404 Not Found | `{"error": "Invitation not found"}` |
-| ErrInvalidEventCode | 404 Not Found | `{"error": "Invalid event code"}` |
+| ドメインエラー                 | HTTPステータス  | レスポンス例                                                            |
+| ------------------------------ | --------------- | ----------------------------------------------------------------------- |
+| ErrEventTitleRequired          | 400 Bad Request | `{"error": "Event title is required"}`                                  |
+| ErrInvalidDateRange            | 400 Bad Request | `{"error": "Start date must be before end date"}`                       |
+| ErrEventNotFound               | 404 Not Found   | `{"error": "Event not found"}`                                          |
+| ErrCannotInviteToArchivedEvent | 400 Bad Request | `{"error": "Cannot invite members to archived event"}`                  |
+| ErrInvalidEmail                | 400 Bad Request | `{"error": "Invalid email address"}`                                    |
+| ErrAlreadyInvited              | 409 Conflict    | `{"error": "User already invited to this event"}`                       |
+| ErrCannotRespondToInvitation   | 400 Bad Request | `{"error": "Cannot respond to expired or already answered invitation"}` |
+| ErrAlreadyParticipant          | 409 Conflict    | `{"error": "User is already a participant of this event"}`              |
+| ErrUnauthorized                | 403 Forbidden   | `{"error": "You do not have permission to perform this action"}`        |
+| ErrInvitationNotFound          | 404 Not Found   | `{"error": "Invitation not found"}`                                     |
+| ErrInvalidEventCode            | 404 Not Found   | `{"error": "Invalid event code"}`                                       |
 
 ## 9. 未決事項
 
 ### 質問・決定事項
 
-| # | 質問 | ステータス | 決定 |
-| --- | --- | --- | --- |
-| 1 | イベント削除時、関連する招待・参加者レコードは物理削除か論理削除か | Open | 論理削除（deleted_atフラグ）推奨。イベント履歴・監査を残すため |
-| 2 | EventCode再生成時、古いコードの無効化は即座か、一定期間有効を保つか | Open | 即座に無効化推奨。セキュリティ観点から。ただしUI上「古いコードはまだ有効か」を確認必要 |
-| 3 | メンバー削除時、EventParticipantのロール削除か、ステータス遷移（ACTIVE→REMOVED等）か | Open | EventParticipant物理削除推奨。権限チェックシンプル化のため |
-| 4 | 招待メール送信失敗時（Notification Service ダウン）の再試行戦略は何か | Open | SQS DeadLetterQueueで再試行管理。Notification Service復旧後、管理画面から手動再送オプション検討 |
-| 5 | イベント開始日前のドラフトイベント一覧取得時、パフォーマンス低下対策（キャッシング等）は必要か | Open | Redis キャッシング 5分TTL検討。ただし初期段階ではDB直クエリで様子見 |
-| 6 | 招待有効期限30日は固定か、イベントごとにカスタマイズ可能にするか | Open | 初期は30日固定。将来的にorg管理画面で設定可能に拡張予定 |
-| 7 | EventParticipantの role 変更（e.g. MEMBER → ADMIN）は可能か、それとも削除＋再招待か | Open | 削除＋再招待推奨。権限昇格・降格イベントは明示的・監査可能なフローとして |
-| 8 | イベントコードの形式（現在 "SUMMER-PARTY-2026" ）でユーザーが覚えやすいか。より短い形式（e.g. "SPY26"）検討の余地あるか | Open | ユーザーテスト後に決定。短すぎると衝突リスク高い。30文字制限内で柔軟性確保 |
-| 9 | ExpireOldInvitations バッチ処理の実行頻度は日1回（00:00 UTC）で十分か | Open | 日1回で初期段階は十分。ユーザー数・イベント数増加後、複数回実行への変更検討 |
-| 10 | Album Service自動作成（EventCreated→Album生成）は ACTIVE化時か作成直後（DRAFT時）か | Open | ACTIVE化時推奨。ユーザーがイベント確定後にアルバムが有効化されるほうが自然 |
+| #   | 質問                                                                                                                    | ステータス | 決定                                                                                            |
+| --- | ----------------------------------------------------------------------------------------------------------------------- | ---------- | ----------------------------------------------------------------------------------------------- |
+| 1   | イベント削除時、関連する招待・参加者レコードは物理削除か論理削除か                                                      | Open       | 論理削除（deleted_atフラグ）推奨。イベント履歴・監査を残すため                                  |
+| 2   | EventCode再生成時、古いコードの無効化は即座か、一定期間有効を保つか                                                     | Open       | 即座に無効化推奨。セキュリティ観点から。ただしUI上「古いコードはまだ有効か」を確認必要          |
+| 3   | メンバー削除時、EventParticipantのロール削除か、ステータス遷移（ACTIVE→REMOVED等）か                                    | Open       | EventParticipant物理削除推奨。権限チェックシンプル化のため                                      |
+| 4   | 招待メール送信失敗時（Notification Service ダウン）の再試行戦略は何か                                                   | Open       | SQS DeadLetterQueueで再試行管理。Notification Service復旧後、管理画面から手動再送オプション検討 |
+| 5   | イベント開始日前のドラフトイベント一覧取得時、パフォーマンス低下対策（キャッシング等）は必要か                          | Open       | Redis キャッシング 5分TTL検討。ただし初期段階ではDB直クエリで様子見                             |
+| 6   | 招待有効期限30日は固定か、イベントごとにカスタマイズ可能にするか                                                        | Open       | 初期は30日固定。将来的にorg管理画面で設定可能に拡張予定                                         |
+| 7   | EventParticipantの role 変更（e.g. MEMBER → ADMIN）は可能か、それとも削除＋再招待か                                     | Open       | 削除＋再招待推奨。権限昇格・降格イベントは明示的・監査可能なフローとして                        |
+| 8   | イベントコードの形式（現在 "SUMMER-PARTY-2026" ）でユーザーが覚えやすいか。より短い形式（e.g. "SPY26"）検討の余地あるか | Open       | ユーザーテスト後に決定。短すぎると衝突リスク高い。30文字制限内で柔軟性確保                      |
+| 9   | ExpireOldInvitations バッチ処理の実行頻度は日1回（00:00 UTC）で十分か                                                   | Open       | 日1回で初期段階は十分。ユーザー数・イベント数増加後、複数回実行への変更検討                     |
+| 10  | Album Service自動作成（EventCreated→Album生成）は ACTIVE化時か作成直後（DRAFT時）か                                     | Open       | ACTIVE化時推奨。ユーザーがイベント確定後にアルバムが有効化されるほうが自然                      |

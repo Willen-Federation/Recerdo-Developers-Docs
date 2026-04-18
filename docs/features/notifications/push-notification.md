@@ -9,7 +9,7 @@
 プッシュ通知は、Recuerdoアプリケーションでユーザーがオンラインでない場合にも、重要なイベント（メッセージ受信、思い出シェア、コメント追加など）をリアルタイムで通知する機能。Firebase Cloud Messaging (FCM) を**主軸**として、iOS および Android デバイスへの配信をサポート。ユーザー設定に基づいた配信制御、オフライン対応、再試行メカニズムをサポートする。
 
 !!! note "FCM-primary 方針"
-    通知チャネルはFCM（プッシュ）および IN_APP（アプリ内）を基本とする。SES（メール）によるメール通知は、セキュリティ関連通知・FCMトークン未登録ユーザー・法的通知・ユーザーがオプトインした週次ダイジェストなど特定条件下のみで使用する。詳細は [Notification Service DD — SES利用条件](../../microservice/notifications-svc.md#ses利用条件) を参照。
+    通知チャネルはFCM（プッシュ）および IN_APP（アプリ内）を基本とする。メール通知は、セキュリティ関連通知・FCMトークン未登録ユーザー・法的通知・ユーザーがオプトインした週次ダイジェストなど特定条件下のみで使用する。詳細は [Notification Service DD — SES利用条件](../../microservice/notifications-svc.md#ses利用条件) を参照。
 
 ## 2. ユースケース詳細
 
@@ -107,18 +107,18 @@
 
 ## 3. 通知種別と優先度マトリックス
 
-| 通知種別 | 説明 | 推奨優先度 | デフォルト配信チャネル | メール（SES）利用条件 | ユーザー設定可能 |
-| --- | --- | --- | --- | --- | --- |
-| MESSAGE_RECEIVED | メッセージ受信 | HIGH | PUSH, IN_APP | FCMトークン未登録時のみ | ✓ |
-| GROUP_CREATED | グループ作成された | NORMAL | PUSH, IN_APP | FCMトークン未登録時のみ | ✓ |
-| MEMORY_SHARED | 思い出がシェアされた | NORMAL | PUSH, IN_APP | FCMトークン未登録時のみ | ✓ |
-| MEMORY_LIKED | 思い出が「いいね」された | LOW | IN_APP | 不使用 | ✓ |
-| COMMENT_ADDED | コメント追加 | NORMAL | PUSH, IN_APP | FCMトークン未登録時のみ | ✓ |
-| FRIEND_ADDED | 友人追加されました | LOW | IN_APP | 不使用 | △（固定） |
-| USER_MENTIONED | メンション | HIGH | PUSH, IN_APP | FCM3回失敗フォールバック | ✓ |
-| SECURITY_ALERT | セキュリティ通知 | HIGH | PUSH, IN_APP, **EMAIL** | **必須**（FCM状態問わず送信） | ✗（固定） |
-| ACCOUNT_VERIFICATION | メールアドレス確認 | HIGH | **EMAIL** | **必須** | ✗（固定） |
-| LEGAL_NOTICE | 規約・ポリシー変更 | NORMAL | IN_APP, **EMAIL** | **必須**（証跡確保のため） | ✗（固定） |
+| 通知種別             | 説明                     | 推奨優先度 | デフォルト配信チャネル  | メール（SES）利用条件         | ユーザー設定可能 |
+| -------------------- | ------------------------ | ---------- | ----------------------- | ----------------------------- | ---------------- |
+| MESSAGE_RECEIVED     | メッセージ受信           | HIGH       | PUSH, IN_APP            | FCMトークン未登録時のみ       | ✓                |
+| GROUP_CREATED        | グループ作成された       | NORMAL     | PUSH, IN_APP            | FCMトークン未登録時のみ       | ✓                |
+| MEMORY_SHARED        | 思い出がシェアされた     | NORMAL     | PUSH, IN_APP            | FCMトークン未登録時のみ       | ✓                |
+| MEMORY_LIKED         | 思い出が「いいね」された | LOW        | IN_APP                  | 不使用                        | ✓                |
+| COMMENT_ADDED        | コメント追加             | NORMAL     | PUSH, IN_APP            | FCMトークン未登録時のみ       | ✓                |
+| FRIEND_ADDED         | 友人追加されました       | LOW        | IN_APP                  | 不使用                        | △（固定）        |
+| USER_MENTIONED       | メンション               | HIGH       | PUSH, IN_APP            | FCM3回失敗フォールバック      | ✓                |
+| SECURITY_ALERT       | セキュリティ通知         | HIGH       | PUSH, IN_APP, **EMAIL** | **必須**（FCM状態問わず送信） | ✗（固定）        |
+| ACCOUNT_VERIFICATION | メールアドレス確認       | HIGH       | **EMAIL**               | **必須**                      | ✗（固定）        |
+| LEGAL_NOTICE         | 規約・ポリシー変更       | NORMAL     | IN_APP, **EMAIL**       | **必須**（証跡確保のため）    | ✗（固定）        |
 
 **優先度の意味**:
 - **HIGH**: 即座に配信。静穏時間帯も配信。バッファリングなし
@@ -242,7 +242,7 @@ sequenceDiagram
     participant Msg as Messaging Service
     participant SQS as AWS SQS
     participant Notif as Notification Service
-    participant DB as PostgreSQL
+    participant DB as MySQL
     participant FCM as Firebase Cloud Messaging
     participant User2Phone as User2 Phone
 
@@ -281,7 +281,7 @@ sequenceDiagram
     participant App as iOS App
     participant FCM as Firebase Cloud Messaging (SDK)
     participant Notif as Notification Service
-    participant DB as PostgreSQL
+    participant DB as MySQL
     
     App ->> FCM: requestPermission() [FCM SDK]
     FCM -->> App: "fcm_token_xyz"
@@ -304,7 +304,7 @@ sequenceDiagram
     participant User as User
     participant App as iOS App
     participant Notif as Notification Service
-    participant DB as PostgreSQL
+    participant DB as MySQL
     
     User ->> App: 通知設定画面を開く
     App ->> Notif: GET /api/notifications/preferences
@@ -375,7 +375,7 @@ TTL: 24 hours
 
 - **SQS**: 複数ワーカーでコンシューム
 - **FCM**: バッチ API 活用（最大500デバイス/リクエスト）
-- **PostgreSQL**: notification_log テーブルにパーティショニング（日次）
+- **MySQL**: notification_log テーブルにパーティショニング（日次）
 - **Redis**: キャッシュ層で Notification Service インスタンス間の同期
 
 ## 9. セキュリティ・プライバシー
