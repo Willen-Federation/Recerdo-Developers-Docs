@@ -5,6 +5,28 @@ Recerdo Developer Docs の変更履歴です。
 
 ---
 
+## v0.7.1 — 2026-04-20 (ローカル開発環境のアーキテクチャ/方針ドキュメント追加)
+
+### 追加
+
+- **[`core/local-development.md`](core/local-development.md)**: Tilt + Colima によるローカル開発環境の **設計・方針ドキュメント** を新設。既存の [`core/local-dev.md`](core/local-dev.md)（操作ガイド）と補完関係を明確化。
+  - 9 マイクロサービス + Beta 相当ミドルウェア（MySQL / MariaDB / Redis / Garage / Flipt / Postfix + Dovecot + Rspamd / MailHog / cognito-local / FCM エミュレータ / Loki / Grafana）のトポロジと責務を定義。
+  - `live_update` による編集 → 反映の高速化、`TILT_PROFILE` によるサービス絞り込み（full / core / media / notify / admin）の設計指針。
+  - コンテナランタイムを **Colima（OSS）第一推奨** に位置付け、`DOCKER_HOST` / `docker context` で Docker Desktop / OrbStack / Rancher Desktop への切替も可能なランタイム可搬性を定義。
+  - 将来性として **k3s 併設モード（`TILT_TARGET=k3s`）** を同梱し、OCI Container Instances → OKE 移行リハーサルを開発者マシン上で実行可能に。
+  - ローカル既定の環境変数カタログ、Flipt シード定義、MariaDB 互換性テストの並走、ポリシー §1.3 / §4.1 との対応を明文化。
+- **`core/local-dev.md`**: 姉妹ドキュメント [`core/local-development.md`](core/local-development.md) への誘導リンクを冒頭に追加（操作ガイド ↔ 設計ドキュメントの役割分担）。
+- **`mkdocs.yml`**: コアプラットフォームのナビゲーションに「ローカル開発環境 (Tilt + Colima, 設計)」を追加し、既存の「ローカル開発 (Tilt で起動)」と並置。
+- **`core/index.md`**: ドキュメント一覧に `local-development.md` を追加。
+
+### 検証
+
+- `mkdocs build --strict` でビルド成功を確認。
+- [基本的方針（Policy）§1.3](core/policy.md#13-aws-利用ポリシー) の禁止アダプタ／サービス名が採用文脈で登場していないことを確認（将来の grep lint で本 changelog 行がヒットしないよう、具体語の列挙はポリシー側に集約）。
+- AWS 依存は **Cognito JWKS のモック（cognito-local）のみ** で、ポリシー §1.3 に準拠。
+
+---
+
 ## v0.7.0 — 2026-04-19 (追加設計プラン・大規模類似サービス徹底反映)
 
 ### 変更・追加

@@ -2,6 +2,9 @@
 
 **Recerdo 全体を `tilt up` 一発で起動**するためのガイド。
 
+!!! tip "関連ドキュメント"
+    本ページは **操作手順** にフォーカスします。「なぜ Tilt / Colima を採用したか」「プロファイル設計の意図」「将来の k3s / OKE 昇格パス」「ランタイム可搬性（Docker Desktop / Colima / OrbStack / Rancher Desktop）」などの **設計・方針** は [ローカル開発環境 (設計・Tilt + Colima 方針)](local-development.md) を参照してください。
+
 対応 Issue: [#22](https://github.com/Willen-Federation/Recerdo-Developers-Docs/issues/22) · ADR: [ADR-0002](adr/0002-repo-layout-per-service.md)
 
 ---

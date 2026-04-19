@@ -165,7 +165,8 @@ nav:
     - core/index.md
     - 基本的方針 (ポリシー): core/policy.md
     - 開発ワークフロー (Workflow): core/workflow.md
-    - ローカル開発 (Tilt で起動): core/local-dev.md
+    - ローカル開発 (Tilt 起動手順): core/local-dev.md
+    - ローカル開発環境 (設計・Tilt + Colima 方針): core/local-development.md
     - Bootstrap チェックリスト: core/bootstrap-checklist.md
     - デプロイメント戦略: core/deployment-strategy.md
     - 環境抽象化 & Feature Flag: core/environment-abstraction.md

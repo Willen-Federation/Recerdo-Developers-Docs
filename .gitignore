@@ -5,3 +5,8 @@ __pycache__/
 .env
 *.zip
 deploy-*.zip
+
+# Editor / IDE settings (keep local, never commit — can contain
+# auto-approval lists like chat.tools.terminal.autoApprove)
+.vscode/
+.idea/
