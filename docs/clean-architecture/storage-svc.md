@@ -2,7 +2,7 @@
 
 | 項目                      | 値                                     |
 | ------------------------- | -------------------------------------- |
-| **モジュール/サービス名** | Storage Service (recuerdo-storage-svc) |
+| **モジュール/サービス名** | Storage Service (recerdo-storage) |
 | **作成者**                | Akira                                  |
 | **作成日**                | 2026-04-13                             |
 | **ステータス**            | ドラフト                               |
@@ -1088,7 +1088,7 @@ func registerHandlers(
 ## 7. ディレクトリ構成
 
 ```
-recuerdo-storage-svc/
+recerdo-storage/
 ├── cmd/
 │   ├── main.go                 # HTTP サーバー起動
 │   └── worker/

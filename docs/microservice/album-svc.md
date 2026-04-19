@@ -1,4 +1,4 @@
-# AlbumApp Service (recuerdo-album-svc)
+# AlbumApp Service (recerdo-album)
 
 **作成者**: Akira · **作成日**: 2026-04-13 · **ステータス**: Draft
 
@@ -8,7 +8,7 @@
 
 ### 目的
 
-AlbumApp Service (recuerdo-album-svc) は Recuerdo（古い友人やグループとの思い出を再びつなぐ社会的メモリプラットフォーム）のコアマイクロサービスです。このサービスは以下の責務を持ちます：
+AlbumApp Service (recerdo-album) は Recuerdo（古い友人やグループとの思い出を再びつなぐ社会的メモリプラットフォーム）のコアマイクロサービスです。このサービスは以下の責務を持ちます：
 
 - **アルバム管理**: イベントに関連したアルバムの作成、更新、削除
 - **メディア管理**: アルバムへの写真・ビデオの追加・削除・キャプション付与
@@ -668,7 +668,7 @@ func startServer(server *http.Server) error {
 ### ディレクトリツリー
 
 ```
-recuerdo-album-svc/
+recerdo-album/
 ├── cmd/
 │   ├── main.go                          # エントリーポイント
 │   └── migrate.go                       # DB マイグレーション実行

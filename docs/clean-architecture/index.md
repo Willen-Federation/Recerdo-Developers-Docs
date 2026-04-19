@@ -61,16 +61,16 @@ flowchart LR
 
 | サービス                                      | 設計書                     | セクション数 |
 | --------------------------------------------- | -------------------------- | ------------ |
-| [API Gateway](api-gateway.md)                 | recuerdo-api-gateway       | 14           |
-| [Authentication Service](auth-svc.md)         | recuerdo-auth-svc          | 14           |
-| [Audit Service](audit-svc.md)                 | recuerdo-audit-svc         | 14           |
-| [Album Service](album-svc.md)                 | recuerdo-album-svc         | 14           |
-| [Events Service](events-svc.md)               | recuerdo-events-svc        | 14           |
-| [Timeline Service](timeline-svc.md)           | recuerdo-timeline-svc      | 14           |
-| [Storage Service](storage-svc.md)             | recuerdo-storage-svc       | 14           |
-| [Notification Service](notifications-svc.md)  | recuerdo-notifications-svc | 14           |
-| [Feature Flag System](feature-flag-system.md) | recuerdo-feature-flag-svc  | 14           |
-| [Admin Console Service](admin-console-svc.md) | recuerdo-admin-console-svc | 10           |
+| [API Gateway](api-gateway.md)                 | recerdo-api-gateway       | 14           |
+| [Authentication Service](auth-svc.md)         | recerdo-auth          | 14           |
+| [Audit Service](audit-svc.md)                 | recerdo-audit         | 14           |
+| [Album Service](album-svc.md)                 | recerdo-album         | 14           |
+| [Events Service](events-svc.md)               | recerdo-events        | 14           |
+| [Timeline Service](timeline-svc.md)           | recerdo-timeline      | 14           |
+| [Storage Service](storage-svc.md)             | recerdo-storage       | 14           |
+| [Notification Service](notifications-svc.md)  | recerdo-notifications | 14           |
+| [Feature Flag System](feature-flag-system.md) | recerdo-feature-flag  | 14           |
+| [Admin Console Service](admin-console-svc.md) | recerdo-admin-console | 10           |
 
 ## 設計書の構成（14セクション）
 

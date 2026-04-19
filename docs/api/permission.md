@@ -1,6 +1,6 @@
 # Permission API
 
-`recuerdo-permission-svc` が提供する認可（Authorization）・セッション・ロール管理APIです。  
+`recerdo-permission` が提供する認可（Authorization）・セッション・ロール管理APIです。  
 認証（Authentication）は [AWS Cognito](auth.md) が担当し、本 API はその発行済み JWT を前提に **権限評価・セッション失効・ロール割当** を担います。
 
 ---

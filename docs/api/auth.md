@@ -1,6 +1,6 @@
 # Authentication API
 
-`recuerdo-auth-svc` が提供する認証・セッション管理APIです。
+`recerdo-auth` が提供する認証・セッション管理APIです。
 
 ### Deprecated
 
