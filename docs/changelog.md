@@ -5,6 +5,41 @@ Recerdo Developer Docs の変更履歴です。
 
 ---
 
+## v0.6.2 — 2026-04-19 (追加設計プラン反映・大規模類似サービス参照)
+
+起点: コミット [`464267`](https://github.com/Willen-Federation/Recerdo-Developers-Docs/commit/464267137d7c63f159d732d47d55a8de16d7093f)（PR #6 マージ）のコメント情報・セキュリティ指摘・横断一貫性の課題。
+
+### 追加
+
+- **`core/policy.md` §8「追加設計プラン（大規模類似サービス参照・反復版）」**: Google Photos / Instagram / Stripe / Uber / Netflix / Google SRE の一般モデルを参照した横断標準を定義。
+  - §8.3 冪等性（Idempotency Key）
+  - §8.4 Transactional Outbox
+  - §8.5 Saga（Choreography）
+  - §8.6 Circuit Breaker + 指数バックオフ
+  - §8.7 OpenTelemetry + W3C Trace Context
+  - §8.8 SLI/SLO + エラーバジェット
+  - §8.9 レート制限
+  - §8.10 コンテンツ重複排除（CAS）
+  - §8.11 継続課題 / §8.12 レビュー反復手順
+- **`microservice/index.md`**: 「横断標準（Cross-cutting Standards）」テーブルと「横断レビュー観点（Peer Review Checklist）」を追加。
+- **`clean-architecture/index.md`**: 「横断パターン」表をクリーンアーキテクチャ層への落とし込みとして追加。14 セクション構成に §14 の反映記録を規定。
+- **`core/index.md`**: 追加設計プランの導線と「横断ドキュメント更新フロー」を追加。
+- **`microservice/notifications-svc.md`**: §9「横断標準の適用」、§10「レビュー指摘の反映記録」を新設。
+- **`clean-architecture/notifications-svc.md`**: §14「変更履歴・レビュー記録（追加設計プラン反映）」を新設。
+
+### 修正
+
+- **`clean-architecture/notifications-svc.md` の `PostfixSMTPAdapter`（§5.2）**: コミット `56a90bc`（Copilot Autofix）適用時に残存していたコード重複を除去し、以下の単一実装に統一。
+  - STARTTLS 拡張の広告確認 → `tls.VersionTLS12` で昇格。
+  - AUTH 拡張の広告確認後のみ `smtp.PlainAuth` を実行。
+  - `net/smtp` が `context` 非対応のため明示的に `_ = ctx`。
+  - `c.Quit()` の無害なエラー（`use of closed network connection`）は無視。
+
+### 検証
+
+- `mkdocs build --strict` でビルド成功を確認。
+- 禁止キーワード（`S3` / `SES` / `SNS` / `SQS` / `DynamoDB` / `RDS` / `Aurora` / `CloudFront` / `Lambda` / `MinIO` / `ElastiCache`）が新規に採用文脈で登場していないことを grep で確認。
+
 ## v0.6.1 — 2026-04-19 (ポリシー適用・最終クリーンアップ)
 
 ### 追加
