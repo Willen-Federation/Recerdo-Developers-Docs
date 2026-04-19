@@ -62,17 +62,22 @@ admin-*    → feature-flag-svc     (Flag 変更・Kill Switch)
 
 ## 追加設計プラン反映（大規模類似サービスモデル準拠）
 
-| 反映テーマ | 変更対象 | 更新内容 |
-| --- | --- | --- |
-| 通知設計の再定義 | notifications-svc | Push-first、Email 条件付き、STARTTLS 必須の運用前提を明確化 |
-| 非同期処理の共通化 | 全サービス | QueuePort + 冪等 + DLQ 監査の統一運用モデルを採用 |
-| レビュー駆動改善 | 設計書全体 | 重要指摘を `core/policy.md` に集約し、各サービスへ再配布 |
+[基本的方針（Policy）§8](../core/policy.md#8-大規模類似サービス参照反復版) の Iteration-02（コミット `464267` コメント起点）をマイクロサービス設計に反映する。
+
+| 設計観点 | 参照モデル | マイクロサービスでの反映 | レビュー/課題入力（464267 コメント） |
+| --- | --- | --- | --- |
+| 通知設計の再定義 | Push-first（LINE / WhatsApp） | notifications-svc を Push-first 既定、メール送信は 5 条件に限定。MailPort は STARTTLS 非対応でエラー終了。 | STARTTLS 必須・旧システム記述削除を明示 |
+| 非同期処理の共通化 | Shopify / Stripe Outbox | 全サービスで QueuePort 直送を禁止し、Outbox → QueuePort → DLQ を SSOT 化。再試行回数と可視性タイムアウトを統一。 | 横断の冪等/DLQ 記述ばらつき指摘を是正 |
+| フィード縮退パス | Instagram / Twitter Fan-out 切替 | timeline-svc は Fan-out on Write を既定、フォロワー > 500 で Read-time へ縮退。SLO 逼迫時は Feature Flag で強制切替。 | 縮退パスが明文化されていない課題に対応 |
+| SLO / Error Budget | Google SRE | admin-console-svc が SLO ダッシュボード集約役、各サービスは RED メトリクスを共通ラベルで公開。 | SLO 記述漏れを防ぐレビュー観点を追加 |
 
 ### 課題・レビュー観点（横断）
 
 - サービスごとの失敗時動作（再試行/打ち切り/通知抑制）を同じ粒度で記述する。
 - 実装サンプルがセキュリティ要件（TLS 必須など）を満たすことをレビュー観点に固定する。
 - ポート/アダプタ切替時に API 契約やイベント契約を変えないことを運用チェックに含める。
+- Timeline の縮退パス（フォロワー規模/Feature Flag 切替）と SLO の紐付けを必ず記載する。
+- Outbox → QueuePort → DLQ の再試行回数・可視性タイムアウト・監査閾値（DLQ 10 件/時）を共通パラメータで扱う。
 
 
 ## 横断標準（Cross-cutting Standards） { #横断標準cross-cutting-standards }
@@ -106,5 +111,4 @@ admin-*    → feature-flag-svc     (Flag 変更・Kill Switch)
 
 ---
 
-最終更新: 2026-04-19 ポリシー適用（追加設計プラン反映）
-
+最終更新: 2026-04-19 ポリシー適用（追加設計プラン反映・Iteration-02 再整理）

@@ -20,6 +20,12 @@ Recerdo のインフラストラクチャ、運用計画、セキュリティに
 
     横断表は [microservice/index.md](../microservice/index.md#横断標準cross-cutting-standards) / [clean-architecture/index.md](../clean-architecture/index.md#横断パターン) で同期管理。
 
+!!! info "Iteration-02（コミット `464267` コメント反復）"
+    - Push-first / STARTTLS 必須 / メール 5 条件制約を通知系の既定として再整理。
+    - Outbox → QueuePort → DLQ のパラメータ（再試行回数・可視性タイムアウト・DLQ 10 件/時アラート）を SSOT 化。
+    - Timeline の Fan-out 縮退（フォロワー規模・SLO 逼迫時の Feature Flag 切替）を index に明文化。
+    - SLO / Error Budget 記述漏れを防ぐチェックをレビュー観点に追加。
+
 ## ドキュメント一覧
 
 | ドキュメント                                                           | 概要                                                                                                                                                                                                 |
@@ -35,6 +41,6 @@ Recerdo のインフラストラクチャ、運用計画、セキュリティに
 
 1. サービス設計書（MS / CA）で**失敗条件**と**運用上の制約**を明文化する。
 2. 該当する横断標準（[policy.md §8](policy.md#8-大規模類似サービス参照反復版)）の適用有無を確認する。
-3. 不足している場合は policy.md §8 に追記し、[microservice/index.md](../microservice/index.md) と [clean-architecture/index.md](../clean-architecture/index.md) の横断表に同期反映する。
+3. 不足している場合は policy.md §8（最新の反復表）に追記し、[microservice/index.md](../microservice/index.md) と [clean-architecture/index.md](../clean-architecture/index.md) の横断表に同期反映する。
 4. CI（禁止キーワード grep / STARTTLS 検査等）で逸脱を検出する運用を維持する。
 5. [changelog.md](../changelog.md) に反復の記録を残す。

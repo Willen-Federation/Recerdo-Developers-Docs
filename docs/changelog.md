@@ -5,6 +5,25 @@ Recerdo Developer Docs の変更履歴です。
 
 ---
 
+## v0.6.3 — 2026-04-19 (追加設計プラン再整理・Iteration-02)
+
+### 変更
+
+- **`core/policy.md`**: §8 に Iteration-02（コミット `464267` コメント起点）の反復表を追加し、Push-first/STARTTLS/Outbox/DLQ/縮退/SLO の整理と anchor `#8-大規模類似サービス参照反復版` を明示。
+- **`core/index.md`**: 反復ログの要約を追記し、横断ドキュメント更新フローで最新反復表を参照するように修正。
+- **`microservice/index.md`**: 追加設計プラン表を Iteration-02 に合わせて拡充（通知/Outbox・DLQ/フィード縮退/SLO）し、横断レビュー観点に縮退・DLQ 閾値を追加。
+- **`clean-architecture/index.md`**: 追加設計プラン表を Iteration-02 に合わせ、レビュー入力列を追加。SLO/縮退/STARTTLS の責務を CA 層に再配置。
+
+### 追加
+
+- コミット `464267137d7c63f159d732d47d55a8de16d7093f` のレビューコメント（STARTTLS 必須、旧システム記述削除、横断一貫性不足）を入力とした反復計画を `policy.md` に記録し、MS/CA index へ再配布。
+
+### 検証
+
+- `mkdocs build --strict`
+
+---
+
 ## v0.6.2 — 2026-04-19 (追加設計プラン反映・レビュー指摘反映)
 
 ### 変更
