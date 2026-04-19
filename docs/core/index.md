@@ -22,15 +22,14 @@ Recerdo のインフラストラクチャ、運用計画、セキュリティに
 
 ## ドキュメント一覧
 
-| ドキュメント | 概要 |
-|---|---|
-| [基本的方針（Policy）](policy.md) | 全ドキュメントの上位方針。AWS Cognito のみ・OSS 主体・追加設計プラン（§8）を含む |
-| [デプロイメント戦略](deployment-strategy.md) | Beta（XServer VPS + CoreServerV2 CORE+X）→ 本番（OCI ファースト）への移行戦略。AWS は Cognito のみ |
-| [環境抽象化 & Feature Flag](environment-abstraction.md) | ハードコード排除・環境変数/Feature Flag/アダプタの3層切替。`STORAGE_PROVIDER=garage\|oci-oss`、`QUEUE_PROVIDER=redis-bullmq\|oci-queue`、`MAIL_PROVIDER=postfix-smtp`、`MEDIA_TRANSCODER=ffmpeg-hls` |
-| [コストパフォーマンス分析](cost-performance-analysis.md) | XServer VPS (~¥3,960/月) + CoreServerV2 CORE+X (~¥1,738/月) + Cognito (無料枠)。Beta 合計 約 ¥6,000/月 |
-| [PoC/Beta スコープ定義](poc-beta-scope.md) | バイブコーディングで実現する MVP 機能セット。HLS/HEIC/Live Photos 変換 + 手動選択ハイライトを含む |
-| [サーバーキャパシティ計画](server-capacity-planning.md) | XServer VPS 6 core/10 GB 上のリソース配分。ffmpeg HLS 変換の CPU 負荷と第二 VPS オフロード戦略 |
-| [ファイアウォール & データプロテクション](firewall-data-protection.md) | Cloudflare + ufw + Traefik + Cognito + MySQL(MariaDB互換)暗号化。バックアップは Garage / OCI Object Storage |
+| ドキュメント                                                           | 概要                                                                                                                                                                                                 |
+| ---------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [デプロイメント戦略](deployment-strategy.md)                           | Beta（XServer VPS + CoreServerV2 CORE+X）→ 本番（OCI ファースト）への移行戦略。AWS は Cognito のみ                                                                                                   |
+| [環境抽象化 & Feature Flag](environment-abstraction.md)                | ハードコード排除・環境変数/Feature Flag/アダプタの3層切替。`STORAGE_PROVIDER=garage\|oci-oss`、`QUEUE_PROVIDER=redis-bullmq\|oci-queue`、`MAIL_PROVIDER=postfix-smtp`、`MEDIA_TRANSCODER=ffmpeg-hls` |
+| [コストパフォーマンス分析](cost-performance-analysis.md)               | XServer VPS (~¥3,960/月) + CoreServerV2 CORE+X (~¥1,738/月) + Cognito (無料枠)。Beta 合計 約 ¥6,000/月                                                                                               |
+| [PoC/Beta スコープ定義](poc-beta-scope.md)                             | バイブコーディングで実現する MVP 機能セット。HLS/HEIC/Live Photos 変換 + 手動選択ハイライトを含む                                                                                                    |
+| [サーバーキャパシティ計画](server-capacity-planning.md)                | XServer VPS 6 core/10 GB 上のリソース配分。ffmpeg HLS 変換の CPU 負荷と第二 VPS オフロード戦略                                                                                                       |
+| [ファイアウォール & データプロテクション](firewall-data-protection.md) | Cloudflare + ufw + Traefik + Cognito + MySQL(MariaDB互換)暗号化。バックアップは Garage / OCI Object Storage                                                                                          |
 
 ## 横断ドキュメント更新フロー
 

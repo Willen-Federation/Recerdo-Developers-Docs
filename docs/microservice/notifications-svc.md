@@ -40,15 +40,15 @@ Key User Stories:
 
 ### 値オブジェクト
 
-| 値オブジェクト       | 説明                     | バリデーションルール                                                                                               |
-| -------------------- | ------------------------ | ------------------------------------------------------------------------------------------------------------------ |
-| NotificationType     | 通知の種別               | MESSAGE_RECEIVED, GROUP_CREATED, MEMORY_SHARED, MEMORY_LIKED, COMMENT_ADDED, FRIEND_ADDED, USER_MENTIONED (列挙型) |
-| DeliveryChannel      | 配信チャネル             | PUSH (FCM), EMAIL (Postfix + Dovecot + Rspamd on CoreServerV2), IN_APP (アプリ内メッセージ) (複数選択可)          |
-| NotificationPriority | 通知の優先度             | HIGH (即座配信), NORMAL (通常), LOW (まとめて配信)                                                                 |
-| DevicePlatform       | デバイスプラットフォーム | iOS, Android, Web (値オブジェクト)                                                                                 |
-| FCMMessage           | FCMに送信するペイロード  | title, body, custom_data, priority, ttl                                                                            |
-| SMTPEmail            | Postfix SMTP に送信するメール | to_address, subject, html_body, text_body, dkim_selector（DKIM 署名は Postfix + OpenDKIM / Rspamd が付与）   |
-| QuietHours           | ユーザーの通知OFF時間帯  | start_hour (0-23), end_hour (0-23)、タイムゾーン対応                                                               |
+| 値オブジェクト       | 説明                          | バリデーションルール                                                                                               |
+| -------------------- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| NotificationType     | 通知の種別                    | MESSAGE_RECEIVED, GROUP_CREATED, MEMORY_SHARED, MEMORY_LIKED, COMMENT_ADDED, FRIEND_ADDED, USER_MENTIONED (列挙型) |
+| DeliveryChannel      | 配信チャネル                  | PUSH (FCM), EMAIL (Postfix + Dovecot + Rspamd on CoreServerV2), IN_APP (アプリ内メッセージ) (複数選択可)           |
+| NotificationPriority | 通知の優先度                  | HIGH (即座配信), NORMAL (通常), LOW (まとめて配信)                                                                 |
+| DevicePlatform       | デバイスプラットフォーム      | iOS, Android, Web (値オブジェクト)                                                                                 |
+| FCMMessage           | FCMに送信するペイロード       | title, body, custom_data, priority, ttl                                                                            |
+| SMTPEmail            | Postfix SMTP に送信するメール | to_address, subject, html_body, text_body, dkim_selector（DKIM 署名は Postfix + OpenDKIM / Rspamd が付与）         |
+| QuietHours           | ユーザーの通知OFF時間帯       | start_hour (0-23), end_hour (0-23)、タイムゾーン対応                                                               |
 
 ### ドメインルール / 不変条件
 
@@ -77,16 +77,16 @@ Key User Stories:
 
 ### ユースケース一覧
 
-| ユースケース             | 入力DTO                                                                                        | 出力DTO                                                    | 説明                      |
-| ------------------------ | ---------------------------------------------------------------------------------------------- | ---------------------------------------------------------- | ------------------------- |
+| ユースケース             | 入力DTO                                                                                        | 出力DTO                                                    | 説明                               |
+| ------------------------ | ---------------------------------------------------------------------------------------------- | ---------------------------------------------------------- | ---------------------------------- |
 | SendNotification         | SendNotificationInput{user_id, notification_type, title, body, data, priority}                 | SendNotificationOutput{notification_id, channels_queued[]} | QueuePort メッセージから通知を送信 |
-| RegisterDeviceToken      | RegisterDeviceTokenInput{user_id, device_id, platform, token_value}                            | RegisterDeviceTokenOutput{device_token_id, expires_at}     | デバイストークン登録      |
-| UpdatePreferences        | UpdatePreferencesInput{user_id, notification_type, email_frequency, push_enabled, quiet_hours} | UpdatePreferencesOutput{preference_id, updated_at}         | 通知設定更新              |
-| MarkAsRead               | MarkAsReadInput{user_id, notification_id}                                                      | MarkAsReadOutput{read_count}                               | 通知を既読に              |
-| GetUnreadCount           | GetUnreadCountInput{user_id}                                                                   | GetUnreadCountOutput{count}                                | 未読通知数取得            |
-| RevokeDeviceToken        | RevokeDeviceTokenInput{device_token_id, reason}                                                | RevokeDeviceTokenOutput{revoked}                           | トークン無効化            |
-| ListNotifications        | ListNotificationsInput{user_id, limit, offset}                                                 | ListNotificationsOutput{notifications[], total_count}      | ユーザーの通知一覧取得    |
-| RetryFailedNotifications | RetryFailedNotificationsInput{notification_id?, max_retries}                                   | RetryFailedNotificationsOutput{retried_count}              | 失敗通知の再試行          |
+| RegisterDeviceToken      | RegisterDeviceTokenInput{user_id, device_id, platform, token_value}                            | RegisterDeviceTokenOutput{device_token_id, expires_at}     | デバイストークン登録               |
+| UpdatePreferences        | UpdatePreferencesInput{user_id, notification_type, email_frequency, push_enabled, quiet_hours} | UpdatePreferencesOutput{preference_id, updated_at}         | 通知設定更新                       |
+| MarkAsRead               | MarkAsReadInput{user_id, notification_id}                                                      | MarkAsReadOutput{read_count}                               | 通知を既読に                       |
+| GetUnreadCount           | GetUnreadCountInput{user_id}                                                                   | GetUnreadCountOutput{count}                                | 未読通知数取得                     |
+| RevokeDeviceToken        | RevokeDeviceTokenInput{device_token_id, reason}                                                | RevokeDeviceTokenOutput{revoked}                           | トークン無効化                     |
+| ListNotifications        | ListNotificationsInput{user_id, limit, offset}                                                 | ListNotificationsOutput{notifications[], total_count}      | ユーザーの通知一覧取得             |
+| RetryFailedNotifications | RetryFailedNotificationsInput{notification_id?, max_retries}                                   | RetryFailedNotificationsOutput{retried_count}              | 失敗通知の再試行                   |
 
 ### ユースケース詳細（主要ユースケース）
 
@@ -246,16 +246,16 @@ FCM を主軸とした設計とし、メール（Postfix）送信は以下の条
 
 ### 各サービスの比較表（採用候補のみ）
 
-| 項目                                  | Firebase Cloud Messaging | Postfix + Dovecot + Rspamd (CoreServerV2) | OneSignal                         | Pusher Beams |
-| ------------------------------------- | ------------------------ | ------------------------------------------ | --------------------------------- | ------------ |
-| プッシュ通知コスト                    | **無料**                 | N/A                                        | Free: 10K subscribers, $99+/month | $99+/month   |
-| メール送信コスト                      | N/A                      | **$0（CoreServerV2 契約に含む）**          | Included                          | Included     |
-| iOS/Android対応                       | ✓ (クロスプラットフォーム) | ✗                                        | ✓                                 | ✓            |
-| セキュリティ                          | Google (高)              | 自己運用（SPF/DKIM/DMARC 設定済）          | 独立                              | Pusher       |
-| TTL/遅延配信                          | ✓ (最大4週間)            | ✗                                          | ✓                                 | ✓            |
-| コンソール管理                        | ✓                        | Grafana + Loki（maillog 可視化）           | ✓                                 | ✓            |
-| 月額固定費                            | $0                       | $0（契約に包含）                           | $99+                              | $99+         |
-| 想定月間通知数（100K users × 10通知） | $0                       | $0                                         | $99                               | $99          |
+| 項目                                  | Firebase Cloud Messaging   | Postfix + Dovecot + Rspamd (CoreServerV2) | OneSignal                         | Pusher Beams |
+| ------------------------------------- | -------------------------- | ----------------------------------------- | --------------------------------- | ------------ |
+| プッシュ通知コスト                    | **無料**                   | N/A                                       | Free: 10K subscribers, $99+/month | $99+/month   |
+| メール送信コスト                      | N/A                        | **$0（CoreServerV2 契約に含む）**         | Included                          | Included     |
+| iOS/Android対応                       | ✓ (クロスプラットフォーム) | ✗                                         | ✓                                 | ✓            |
+| セキュリティ                          | Google (高)                | 自己運用（SPF/DKIM/DMARC 設定済）         | 独立                              | Pusher       |
+| TTL/遅延配信                          | ✓ (最大4週間)              | ✗                                         | ✓                                 | ✓            |
+| コンソール管理                        | ✓                          | Grafana + Loki（maillog 可視化）          | ✓                                 | ✓            |
+| 月額固定費                            | $0                         | $0（契約に包含）                          | $99+                              | $99+         |
+| 想定月間通知数（100K users × 10通知） | $0                         | $0                                        | $99                               | $99          |
 
 ### 推奨構成: FCM-primary（FCM 中心、Postfix メール条件付き）
 
@@ -291,24 +291,24 @@ OneSignal 等（月額 $99+）と比較すると **年間 $1,188 以上のコス
 
 [基本的方針（Policy）§8](../core/policy.md#8-大規模類似サービス参照反復版) および [microservice/index.md 横断標準](index.md#横断標準cross-cutting-standards) の適用状況を明示する。
 
-| 標準 | 本サービスでの反映 |
-| --- | --- |
-| **Idempotency Key** | `POST /api/notifications/register-device`、`PUT /api/notifications/preferences/*`、`POST /api/notifications/{id}/retry` に `Idempotency-Key` を必須化（24h 保持）。QueuePort Consumer 側でも `notification_id` を冪等キーとして重複配信を防止。 |
-| **Transactional Outbox** | `NotificationSent` / `NotificationFailed` / `DeviceTokenRevoked` を `outbox_events` に書き込み、Publisher が QueuePort に転送。FCM 呼び出しの成否は **Outbox へ記録した後** に確定させる（DB と副作用の整合）。 |
-| **Saga (Choreography)** | `memory.shared` / `comment.added` 等を受信 → 配信タスク実行 → `notification.sent` を Outbox へ。配信失敗時は `notification.failed` を Outbox 経由で発行し、管理コンソールの運用タスクに連携。 |
-| **Circuit Breaker + Backoff** | FCM API、Postfix SMTP への呼び出しに `gobreaker` を適用。失敗率 50% / 20 件で Open、30 秒で Half-Open。再送は base 200ms × factor 2（max 3 回）。 |
-| **OpenTelemetry + W3C Trace Context** | HTTP / QueuePort の入出境界で `traceparent` を伝播。`notification_id` と `trace_id` の相関をログで保持（本文は出さない）。 |
-| **SLI/SLO** | `NotificationCreated → FCM Sent` 95%tile < 60s、`PostfixSMTP 送信` 95%tile < 10s、配信成功率 >= 99.0% を SLO として監視。エラーバジェット枯渇時は `circuit.breaker.fcm.disabled=true` Kill Switch で一時停止可能。 |
-| **レート制限** | デバイスあたり FCM 送信は 1 分間に 10 件まで（優先度 HIGH は例外）。ユーザーごとの通知合計は 1 日 200 件まで、それ以上は IN_APP に退避。 |
-| **SMTP 最低要件** | §8 と `PostfixSMTPAdapter` 実装で STARTTLS / TLS1.2+ / AUTH 拡張確認を必須化（[クリーンアーキテクチャ](../clean-architecture/notifications-svc.md#postfixsmtpadapter-mailport-実装) 参照）。 |
+| 標準                                  | 本サービスでの反映                                                                                                                                                                                                                              |
+| ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Idempotency Key**                   | `POST /api/notifications/register-device`、`PUT /api/notifications/preferences/*`、`POST /api/notifications/{id}/retry` に `Idempotency-Key` を必須化（24h 保持）。QueuePort Consumer 側でも `notification_id` を冪等キーとして重複配信を防止。 |
+| **Transactional Outbox**              | `NotificationSent` / `NotificationFailed` / `DeviceTokenRevoked` を `outbox_events` に書き込み、Publisher が QueuePort に転送。FCM 呼び出しの成否は **Outbox へ記録した後** に確定させる（DB と副作用の整合）。                                 |
+| **Saga (Choreography)**               | `memory.shared` / `comment.added` 等を受信 → 配信タスク実行 → `notification.sent` を Outbox へ。配信失敗時は `notification.failed` を Outbox 経由で発行し、管理コンソールの運用タスクに連携。                                                   |
+| **Circuit Breaker + Backoff**         | FCM API、Postfix SMTP への呼び出しに `gobreaker` を適用。失敗率 50% / 20 件で Open、30 秒で Half-Open。再送は base 200ms × factor 2（max 3 回）。                                                                                               |
+| **OpenTelemetry + W3C Trace Context** | HTTP / QueuePort の入出境界で `traceparent` を伝播。`notification_id` と `trace_id` の相関をログで保持（本文は出さない）。                                                                                                                      |
+| **SLI/SLO**                           | `NotificationCreated → FCM Sent` 95%tile < 60s、`PostfixSMTP 送信` 95%tile < 10s、配信成功率 >= 99.0% を SLO として監視。エラーバジェット枯渇時は `circuit.breaker.fcm.disabled=true` Kill Switch で一時停止可能。                              |
+| **レート制限**                        | デバイスあたり FCM 送信は 1 分間に 10 件まで（優先度 HIGH は例外）。ユーザーごとの通知合計は 1 日 200 件まで、それ以上は IN_APP に退避。                                                                                                        |
+| **SMTP 最低要件**                     | §8 と `PostfixSMTPAdapter` 実装で STARTTLS / TLS1.2+ / AUTH 拡張確認を必須化（[クリーンアーキテクチャ](../clean-architecture/notifications-svc.md#postfixsmtpadapter-mailport-実装) 参照）。                                                    |
 
 ## 10. レビュー指摘の反映記録
 
-| 日付 | 出所 | 指摘 | 反映 |
-| --- | --- | --- | --- |
-| 2026-04-19 | PR #6 Copilot Autofix（コミット `56a90bc`） | Postfix SMTP アダプタで STARTTLS が明示的に要求されていない | `PostfixSMTPAdapter.SendEmail` で STARTTLS 広告確認 → TLS1.2+ 昇格 → AUTH 拡張確認 を必須化。重複コードを整理。 |
-| 2026-04-19 | 横断レビュー（コミット `464267` マージ後） | メール通知条件が MS / CA で分散し、改訂時の差異が発生しやすい | `#メール通知条件` アンカーを MS 側で、`#postfixsmtp-利用条件` を CA 側で安定化し、両方から policy.md §2.3 / §8 を参照する構成に統一。 |
-| 2026-04-19 | 追加設計プラン反復 | 冪等性 / Outbox / Saga / Circuit Breaker / SLO が文書ごとにバラバラ | 本 §9 の横断標準表を新設し、policy.md §8 と同期。 |
+| 日付       | 出所                                        | 指摘                                                                | 反映                                                                                                                                  |
+| ---------- | ------------------------------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-04-19 | PR #6 Copilot Autofix（コミット `56a90bc`） | Postfix SMTP アダプタで STARTTLS が明示的に要求されていない         | `PostfixSMTPAdapter.SendEmail` で STARTTLS 広告確認 → TLS1.2+ 昇格 → AUTH 拡張確認 を必須化。重複コードを整理。                       |
+| 2026-04-19 | 横断レビュー（コミット `464267` マージ後）  | メール通知条件が MS / CA で分散し、改訂時の差異が発生しやすい       | `#メール通知条件` アンカーを MS 側で、`#postfixsmtp-利用条件` を CA 側で安定化し、両方から policy.md §2.3 / §8 を参照する構成に統一。 |
+| 2026-04-19 | 追加設計プラン反復                          | 冪等性 / Outbox / Saga / Circuit Breaker / SLO が文書ごとにバラバラ | 本 §9 の横断標準表を新設し、policy.md §8 と同期。                                                                                     |
 
 ---
 

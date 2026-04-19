@@ -12,15 +12,15 @@ Recerdo Developer Docs の変更履歴です。
 ### 追加
 
 - **`core/policy.md` §8「追加設計プラン（大規模類似サービス参照・反復版）」**: Google Photos / Instagram / Stripe / Uber / Netflix / Google SRE の一般モデルを参照した横断標準を定義。
-    - §8.3 冪等性（Idempotency Key）
-    - §8.4 Transactional Outbox
-    - §8.5 Saga（Choreography）
-    - §8.6 Circuit Breaker + 指数バックオフ
-    - §8.7 OpenTelemetry + W3C Trace Context
-    - §8.8 SLI/SLO + エラーバジェット
-    - §8.9 レート制限
-    - §8.10 コンテンツ重複排除（CAS）
-    - §8.11 継続課題 / §8.12 レビュー反復手順
+  - §8.3 冪等性（Idempotency Key）
+  - §8.4 Transactional Outbox
+  - §8.5 Saga（Choreography）
+  - §8.6 Circuit Breaker + 指数バックオフ
+  - §8.7 OpenTelemetry + W3C Trace Context
+  - §8.8 SLI/SLO + エラーバジェット
+  - §8.9 レート制限
+  - §8.10 コンテンツ重複排除（CAS）
+  - §8.11 継続課題 / §8.12 レビュー反復手順
 - **`microservice/index.md`**: 「横断標準（Cross-cutting Standards）」テーブルと「横断レビュー観点（Peer Review Checklist）」を追加。
 - **`clean-architecture/index.md`**: 「横断パターン」表をクリーンアーキテクチャ層への落とし込みとして追加。14 セクション構成に §14 の反映記録を規定。
 - **`core/index.md`**: 追加設計プランの導線と「横断ドキュメント更新フロー」を追加。
@@ -30,17 +30,15 @@ Recerdo Developer Docs の変更履歴です。
 ### 修正
 
 - **`clean-architecture/notifications-svc.md` の `PostfixSMTPAdapter`（§5.2）**: コミット `56a90bc`（Copilot Autofix）適用時に残存していたコード重複を除去し、以下の単一実装に統一。
-    - STARTTLS 拡張の広告確認 → `tls.VersionTLS12` で昇格。
-    - AUTH 拡張の広告確認後のみ `smtp.PlainAuth` を実行。
-    - `net/smtp` が `context` 非対応のため明示的に `_ = ctx`。
-    - `c.Quit()` の無害なエラー（`use of closed network connection`）は無視。
+  - STARTTLS 拡張の広告確認 → `tls.VersionTLS12` で昇格。
+  - AUTH 拡張の広告確認後のみ `smtp.PlainAuth` を実行。
+  - `net/smtp` が `context` 非対応のため明示的に `_ = ctx`。
+  - `c.Quit()` の無害なエラー（`use of closed network connection`）は無視。
 
 ### 検証
 
 - `mkdocs build --strict` でビルド成功を確認。
 - 禁止キーワード（`S3` / `SES` / `SNS` / `SQS` / `DynamoDB` / `RDS` / `Aurora` / `CloudFront` / `Lambda` / `MinIO` / `ElastiCache`）が新規に採用文脈で登場していないことを grep で確認。
-
----
 
 ## v0.6.1 — 2026-04-19 (ポリシー適用・最終クリーンアップ)
 
