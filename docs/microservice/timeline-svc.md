@@ -1,4 +1,4 @@
-# Timeline Module (recuerdo-timeline-svc)
+# Timeline Module (recerdo-timeline)
 
 **作成者**: Akira · **作成日**: 2026-04-14 · **ステータス**: Draft
 
@@ -12,7 +12,10 @@ recuerdoの全ユーザー・組織に対して、時系列で整理された活
 
 Timeline Serviceの本質:
 - **イベント駆動アーキテクチャ**: Events Service・Album Service・Auth Service・Messaging Service から **QueuePort（Beta: Redis+BullMQ/asynq、本番: OCI Queue Service）** 経由で非同期イベントを受信し、TimelineItemレコードを生成（AWS SQS は不使用、[基本的方針](../core/policy.md) 参照）
+  - **冪等性とトランザクショナルアウトボックス**: すべてのイベントリスニングおよび書き込み処理に対して、`Idempotency-Key` と対象アイテムのIDを用いた冪等性（Idempotency）を保証（Redisにて24時間保持）。自サービスからのイベント発行時は確実に Transactional Outbox パターンを用いて送信する。
 - **読み取り最適化設計**: 大規模な読み取り負荷に対応するため、Redis cache + MySQL 8.0 / MariaDB 10.11 パーティション + cursor-based pagination
+  - **スケーラビリティ (ハイブリッド Fan-out)**: Fan-out on Write を既定の同期戦略とするが、フォロワー数が500を超える場合はスパイクを防ぐため Fan-out on Read に動的に切り替える。
+  - **縮退運転 (Graceful Degradation)**: 負荷上昇時やSLOエラーバジェット枯渇時は、タイムライン取得をキャッシュフォールバックへ縮退し、重い書き込み操作は Flipt 機能フラグ（Feature Flags）によって Fan-out on Read へ切り替えるか一時無効化してシステムを保護する。
 - **イミュータブル・アペンドオンリー**: Timeline items は削除されず、visibility フラグで「表示/非表示」を制御
 - **権限・可視性管理**: PRIVATE（所有者のみ） / FRIENDS（友人グループのみ） / PUBLIC（全員表示）の3段階可視性
 
@@ -439,7 +442,7 @@ type QueueEventConsumerPort interface {
 
 | ポートインターフェース | アダプタクラス               | 外部システム                                                                |
 | ---------------------- | ---------------------------- | --------------------------------------------------------------------------- |
-| PermissionPort         | PermissionServiceGRPCAdapter | recuerdo-permission-svc (gRPC CheckFriendship, GetUser)                     |
+| PermissionPort         | PermissionServiceGRPCAdapter | recerdo-permission (gRPC CheckFriendship, GetUser)                     |
 | EventPublisherPort     | QueueEventPublisher          | QueuePort トピック `recuerdo.timeline.events`（Beta: Redis+BullMQ/asynq、本番: OCI Queue Service） |
 | QueueEventConsumerPort | QueueEventConsumer           | QueuePort トピック `recuerdo.events.service.published`, `recuerdo.auth.friendship_created`, `recuerdo.events.deleted` |
 
@@ -519,7 +522,7 @@ fx.Provide(
 ### ディレクトリツリー
 
 ```
-recuerdo-timeline-svc/
+recerdo-timeline/
 ├── cmd/server/
 │   ├── main.go
 │   └── wire.go                    # fx DI setup

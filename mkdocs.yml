@@ -164,12 +164,21 @@ nav:
   - コアプラットフォーム:
     - core/index.md
     - 基本的方針 (ポリシー): core/policy.md
+    - 開発ワークフロー (Workflow): core/workflow.md
+    - ローカル開発 (Tilt 起動手順): core/local-dev.md
+    - ローカル開発環境 (設計・Tilt + Colima 方針): core/local-development.md
+    - Bootstrap チェックリスト: core/bootstrap-checklist.md
     - デプロイメント戦略: core/deployment-strategy.md
     - 環境抽象化 & Feature Flag: core/environment-abstraction.md
-    - ローカル開発環境 (Tilt + Colima): core/local-development.md
     - コストパフォーマンス分析: core/cost-performance-analysis.md
     - PoC/Beta スコープ定義: core/poc-beta-scope.md
     - サーバーキャパシティ計画: core/server-capacity-planning.md
     - ファイアウォール & データプロテクション: core/firewall-data-protection.md
+    - Architecture Decision Records:
+      - core/adr/README.md
+      - ADR-0001 命名規約: core/adr/0001-naming-convention.md
+      - ADR-0002 リポレイアウト (per-service): core/adr/0002-repo-layout-per-service.md
+      - ADR-0003 admin-console 配置: core/adr/0003-admin-console-placement.md
+      - ADR-0004 audit 配置: core/adr/0004-audit-service-placement.md
 
   - 変更履歴: changelog.md

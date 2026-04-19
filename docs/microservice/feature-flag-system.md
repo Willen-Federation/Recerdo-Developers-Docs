@@ -1,4 +1,4 @@
-# Feature Flag 管理システム (recuerdo-feature-flag-svc)
+# Feature Flag 管理システム (recerdo-feature-flag)
 
 **作成者**: Claude (AI) · **作成日**: 2026-04-19 · **ステータス**: 承認済み (Approved)
 

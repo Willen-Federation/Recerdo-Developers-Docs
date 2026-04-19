@@ -2,7 +2,7 @@
 
 | 項目                      | 値                                 |
 | ------------------------- | ---------------------------------- |
-| **モジュール/サービス名** | API Gateway (recuerdo-api-gateway) |
+| **モジュール/サービス名** | API Gateway (recerdo-api-gateway) |
 | **作成者**                | Akira                              |
 | **作成日**                | 2026-04-13                         |
 | **ステータス**            | ドラフト                           |
@@ -676,7 +676,7 @@ func provideGinEngine(
 
 func main() {
 	app := fx.New(
-		fx.Module("recuerdo-api-gateway",
+		fx.Module("recerdo-api-gateway",
 			infrastructure.Module,
 			handlers.Module,
 		),
@@ -691,7 +691,7 @@ func main() {
 ## 7. ディレクトリ構成
 
 ```
-recuerdo-api-gateway/
+recerdo-api-gateway/
 ├── cmd/
 │   └── main.go                 # エントリーポイント
 ├── domain/

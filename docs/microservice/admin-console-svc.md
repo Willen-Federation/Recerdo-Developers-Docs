@@ -1,4 +1,4 @@
-# Admin Console Service (recuerdo-admin-console-svc)
+# Admin Console Service (recerdo-admin-console)
 
 **作成者**: Claude (AI) · **作成日**: 2026-04-19 · **ステータス**: 承認待ち
 

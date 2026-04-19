@@ -2,7 +2,7 @@
 
 | 項目                      | 値                                    |
 | ------------------------- | ------------------------------------- |
-| **モジュール/サービス名** | AlbumApp Service (recuerdo-album-svc) |
+| **モジュール/サービス名** | AlbumApp Service (recerdo-album) |
 | **作成者**                | Akira                                 |
 | **作成日**                | 2026-04-13                            |
 | **ステータス**            | ドラフト                              |
@@ -712,7 +712,7 @@ CREATE INDEX idx_album_comments_user_id ON album_comments (user_id);
 
 ### 6.3 メッセージブローカー
 - **QueuePort**: ドメインイベント非同期処理（Beta: Redis + BullMQ/asynq、Prod: OCI Queue）
-  - キュー名: `recuerdo-album-events-queue`
+  - キュー名: `recerdo-album-events-queue`
   - イベント種: `AlbumCreated`, `MediaAdded`, `HighlightVideoReady`
   - メッセージ保有: 1 日
   - 可視性タイムアウト: 5 分
@@ -850,7 +850,7 @@ func startServer(
 ## 7. ディレクトリ構成
 
 ```
-recuerdo-album-svc/
+recerdo-album/
 ├── cmd/
 │   ├── main.go                 # エントリポイント
 │   └── migrations/

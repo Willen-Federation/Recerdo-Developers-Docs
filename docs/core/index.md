@@ -20,13 +20,20 @@ Recerdo のインフラストラクチャ、運用計画、セキュリティに
 
     横断表は [microservice/index.md](../microservice/index.md#横断標準cross-cutting-standards) / [clean-architecture/index.md](../clean-architecture/index.md#横断パターン) で同期管理。
 
+!!! info "Iteration-02（コミット `464267` コメント反復）"
+    - Push-first / STARTTLS 必須 / メール 5 条件制約を通知系の既定として再整理。
+    - Outbox → QueuePort → DLQ のパラメータ（再試行回数・可視性タイムアウト・DLQ 10 件/時アラート）を SSOT 化。
+    - Timeline の Fan-out 縮退（フォロワー規模・SLO 逼迫時の Feature Flag 切替）を index に明文化。
+    - SLO / Error Budget 記述漏れを防ぐチェックをレビュー観点に追加。
+
 ## ドキュメント一覧
 
 | ドキュメント                                                           | 概要                                                                                                                                                                                                 |
 | ---------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [デプロイメント戦略](deployment-strategy.md)                           | Beta（XServer VPS + CoreServerV2 CORE+X）→ 本番（OCI ファースト）への移行戦略。AWS は Cognito のみ                                                                                                   |
 | [環境抽象化 & Feature Flag](environment-abstraction.md)                | ハードコード排除・環境変数/Feature Flag/アダプタの3層切替。`STORAGE_PROVIDER=garage\|oci-oss`、`QUEUE_PROVIDER=redis-bullmq\|oci-queue`、`MAIL_PROVIDER=postfix-smtp`、`MEDIA_TRANSCODER=ffmpeg-hls` |
-| [ローカル開発環境 (Tilt + Colima)](local-development.md)               | Tilt による 9 マイクロサービス + Beta 相当ミドルウェアの宣言的起動。コンテナランタイムは Colima を第一推奨（Docker Desktop 非依存）。k3s への昇格パス同梱                                                   |
+| [ローカル開発 (Tilt 起動手順)](local-dev.md)                           | 操作ガイド。兄弟リポ clone → `colima start` → `tilt up` の手順、プロファイル切替、よくあるトラブル                                                                                                   |
+| [ローカル開発環境 (設計・Tilt + Colima 方針)](local-development.md)    | 設計ドキュメント。Tilt による 9 マイクロサービス + Beta 相当ミドルウェアの宣言的起動設計。Colima を第一推奨とするランタイム可搬性と k3s 昇格パス                                                               |
 | [コストパフォーマンス分析](cost-performance-analysis.md)               | XServer VPS (~¥3,960/月) + CoreServerV2 CORE+X (~¥1,738/月) + Cognito (無料枠)。Beta 合計 約 ¥6,000/月                                                                                               |
 | [PoC/Beta スコープ定義](poc-beta-scope.md)                             | バイブコーディングで実現する MVP 機能セット。HLS/HEIC/Live Photos 変換 + 手動選択ハイライトを含む                                                                                                    |
 | [サーバーキャパシティ計画](server-capacity-planning.md)                | XServer VPS 6 core/10 GB 上のリソース配分。ffmpeg HLS 変換の CPU 負荷と第二 VPS オフロード戦略                                                                                                       |
@@ -36,6 +43,6 @@ Recerdo のインフラストラクチャ、運用計画、セキュリティに
 
 1. サービス設計書（MS / CA）で**失敗条件**と**運用上の制約**を明文化する。
 2. 該当する横断標準（[policy.md §8](policy.md#8-大規模類似サービス参照反復版)）の適用有無を確認する。
-3. 不足している場合は policy.md §8 に追記し、[microservice/index.md](../microservice/index.md) と [clean-architecture/index.md](../clean-architecture/index.md) の横断表に同期反映する。
+3. 不足している場合は policy.md §8（最新の反復表）に追記し、[microservice/index.md](../microservice/index.md) と [clean-architecture/index.md](../clean-architecture/index.md) の横断表に同期反映する。
 4. CI（禁止キーワード grep / STARTTLS 検査等）で逸脱を検出する運用を維持する。
 5. [changelog.md](../changelog.md) に反復の記録を残す。

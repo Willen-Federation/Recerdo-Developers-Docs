@@ -9,6 +9,9 @@
 !!! note "ポリシー準拠"
     本ドキュメントは最新インフラポリシーに準拠しています。ローカル開発環境は Beta 構成（**XServer VPS + CoreServerV2 CORE+X**）と同一スタックを開発者マシン上で再現することを目的とし、**Garage**（S3 互換 OSS）／**Redis + BullMQ・asynq**／**Postfix + Dovecot + Rspamd**／**Flipt**／**MySQL（MariaDB 10.11 互換スキーマ）** を統合する。AWS 依存は **Cognito JWKS のみ**（JWT 検証用のエミュレータでモック）。
 
+!!! tip "操作手順は別ページ"
+    本ページは **設計・方針** ドキュメントです。実際に `tilt up` でシステムを起動する **手順** は [ローカル開発 (Tilt 起動手順)](local-dev.md) を参照してください。両者は役割分担しており、Bootstrap 時は `local-dev.md` → 設計意図を深掘りするときに本ページを参照する導線を想定しています。
+
 ---
 
 ## 1. エグゼクティブサマリー
@@ -516,6 +519,7 @@ k3s で動くことを CI で週次チェックすれば、**OKE 移行時に Ma
 
 ## 13. 関連ドキュメント
 
+- [ローカル開発 (Tilt 起動手順)](local-dev.md) — **操作ガイド**。本ドキュメントと対の関係で、実際の `tilt up` / `colima start` 手順・兄弟リポ clone スクリプト・トラブルシューティングをカバー
 - [デプロイメント戦略](deployment-strategy.md) — Beta（Docker Compose）／本番（OCI Container Instances / OKE）への接続点
 - [環境抽象化 & Feature Flag](environment-abstraction.md) — 本ドキュメントが前提とする `.env.local` / Adapter の切替
 - [サーバーキャパシティ計画](server-capacity-planning.md) — Colima 推奨 CPU/メモリの根拠

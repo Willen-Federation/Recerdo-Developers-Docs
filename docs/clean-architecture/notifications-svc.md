@@ -2,7 +2,7 @@
 
 | 項目                      | 値                                                |
 | ------------------------- | ------------------------------------------------- |
-| **モジュール/サービス名** | Notification Service (recuerdo-notifications-svc) |
+| **モジュール/サービス名** | Notification Service (recerdo-notifications) |
 | **作成者**                | Claude (AI)                                       |
 | **作成日**                | 2026-04-15                                        |
 | **ステータス**            | 提案 (Proposal)                                   |

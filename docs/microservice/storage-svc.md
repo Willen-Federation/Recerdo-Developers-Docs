@@ -1,4 +1,4 @@
-# Storage Module (recuerdo-storage-svc)
+# Storage Module (recerdo-storage)
 
 **作成者**: Akira · **作成日**: 2026-04-13 · **ステータス**: Draft
 
@@ -452,7 +452,7 @@ type DeleteMediaUseCase interface {
 | StoragePort            | **Beta:** `GarageStorageAdapter` / **本番:** `OCIObjectStorageAdapter` | Garage（S3互換 OSS, CoreServerV2 CORE+X）/ OCI Object Storage | ファイルアップロード・Presigned URL 生成・Multipart マージ。いずれも `aws-sdk-go-v2/service/s3` を S3 互換クライアントとして利用（エンドポイント URL とリージョン差分のみ） |
 | MediaTranscoderPort    | `FFmpegHLSAdapter` / `LibheifAdapter`                                  | FFmpeg（動画 HLS 変換・concat）/ libheif（HEIC→JPEG/WebP 変換・Live Photo 識別子抽出） | ワーカープロセス内で実行。Beta はコンテナ同居、本番は OCI Container Instances 上の専用ワーカー |
 | QueuePort              | **Beta:** `RedisBullMQAdapter`（Node）または `AsynqAdapter`（Go）/ **本番:** `OCIQueueAdapter` | Redis 7.x + BullMQ/asynq / OCI Queue Service | ジョブキュー管理（PENDING/RUNNING/DONE/FAILED）・ドメインイベント発行 |
-| PermissionPort         | `PermissionServiceGRPCAdapter`                                         | recuerdo-permission-svc (gRPC)  | 組織メンバーシップ・イベント参加状態の確認                    |
+| PermissionPort         | `PermissionServiceGRPCAdapter`                                         | recerdo-permission (gRPC)  | 組織メンバーシップ・イベント参加状態の確認                    |
 | EventPublisherPort     | `QueueEventPublisher`（QueuePort を委譲）                              | Topic: `recuerdo.media.*`       | MediaUploaded・MediaReady・MediaProcessingFailed・HighlightVideoReady イベント発行 |
 
 ## 5. インフラストラクチャ層
@@ -619,7 +619,7 @@ fx.Provide(
 ### ディレクトリツリー
 
 ```
-recuerdo-storage-svc/
+recerdo-storage/
 ├── cmd/
 │   ├── server/
 │   │   └── main.go                 # アプリケーション起動

@@ -1,7 +1,7 @@
 # API リファレンス
 
 Recerdoのバックエンドが公開するREST APIの一覧と共通仕様をまとめます。  
-全APIは `API Gateway (recuerdo-api-gateway)` を経由し、JWT (RS256) による認可が適用されます。
+全APIは `API Gateway (recerdo-api-gateway)` を経由し、JWT (RS256) による認可が適用されます。
 
 ## ベースURL
 
