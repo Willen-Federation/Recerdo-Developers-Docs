@@ -35,10 +35,11 @@ jobs:
         id: vars
         run: |
           SINCE_HOURS="${{ github.event.inputs.since_hours || '24' }}"
+          since_utc=$(date -u -d "${SINCE_HOURS} hours ago" +%Y-%m-%dT%H:%M:%SZ)
           {
             echo "date_jst=$(TZ=Asia/Tokyo date +%Y-%m-%d)"
             echo "time_jst=$(TZ=Asia/Tokyo date +'%Y-%m-%d %H:%M JST')"
-            echo "since_utc=$(date -u -d "${SINCE_HOURS} hours ago" +%Y-%m-%dT%H:%M:%SZ)"
+            echo "since_utc=${since_utc}"
           } >> "$GITHUB_OUTPUT"
 
       - name: Generate activity digest
@@ -62,11 +63,12 @@ jobs:
           GH_TOKEN: ${{ secrets.WIKI_SYNC_TOKEN }}
         run: |
           set +e
-          git clone "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.wiki.git" wiki 2>clone.err
+          git -c http.extraheader="AUTHORIZATION: bearer ${GH_TOKEN}" \
+            clone "https://github.com/${{ github.repository }}.wiki.git" wiki 2>clone.err
           rc=$?
           set -e
           if [ $rc -ne 0 ]; then
-            cat clone.err
+            sed -E 's/(Authorization: bearer )[[:graph:]]+/\1***REDACTED***/Ig' clone.err >&2 || true
             echo "::warning::Wiki リポジトリがクローンできません。https://github.com/${{ github.repository }}/wiki から最初のページ (例: Home) を一度手動作成してから workflow_dispatch で再実行してください。"
             echo "wiki_ready=false" >> "$GITHUB_OUTPUT"
           else
