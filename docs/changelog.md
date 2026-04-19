@@ -1,7 +1,24 @@
 # 変更履歴 (Changelog)
 
-Recerdo Developer Docs の変更履歴です。  
+Recuerdo Developer Docs の変更履歴です。  
 各ドキュメントの最終更新日はページ下部にも表示されます。
+
+---
+
+## v0.6.2 — 2026-04-19 (追加設計プラン反映・レビュー指摘反映)
+
+### 変更
+
+- **`core/policy.md`**: 大規模類似サービスモデルを参照した「追加設計プラン」を新設。設計・分析・課題・他者レビュー反映の反復手順を明文化。
+- **`core/index.md`**: 追加設計プランの参照導線を追加し、横断ドキュメント更新フローを明記。
+- **`microservice/index.md`**: 追加設計プラン反映テーブルと横断レビュー観点を追加。
+- **`clean-architecture/index.md`**: クリーンアーキテクチャ層への反映方針（Push-first、DLQ、TLS要件）を追記。
+- **`microservice/notifications-svc.md`**: メール通知条件アンカーを安定化（`#mail-notification-conditions`）し、追加設計プランとレビュー反映内容を追記。
+- **`clean-architecture/notifications-svc.md`**: PostfixSMTPAdapter の実装例を整理し、STARTTLS 必須・TLS1.2+・AUTH 非対応時エラーの記述へ統一。重複していたサンプル断片を削除。
+
+### 検証
+
+- `mkdocs build --strict` でビルド成功。
 
 ---
 
