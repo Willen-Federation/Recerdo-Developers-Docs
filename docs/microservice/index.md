@@ -60,7 +60,36 @@ admin-*    → feature-flag-svc     (Flag 変更・Kill Switch)
 
 すべての差分は **Feature Flag + 環境変数** で切替可能（[環境抽象化](../core/environment-abstraction.md) 参照）。AWS サービスは **Cognito のみ** 利用し、SQS / SES / S3 / DynamoDB / RDS / MinIO / EC2 / EKS / ElastiCache / Lambda / CloudFront は採用しない（[基本的方針（ポリシー）](../core/policy.md) 参照）。
 
+## 横断標準（Cross-cutting Standards） { #横断標準cross-cutting-standards }
+
+[基本的方針（Policy）§8](../core/policy.md#8-大規模類似サービス参照反復版) の「追加設計プラン」を各マイクロサービスに適用するための対応表です。
+
+| 標準 | 適用範囲 | 実装ガイド |
+| --- | --- | --- |
+| **冪等性（Idempotency Key）** | 全 Write 系 REST API（POST / PUT / PATCH / DELETE） | `Idempotency-Key` ヘッダを受理し、`user_id+endpoint+key` を Redis に 24h 保持。再送で同一レスポンスを再現。Stripe / Shopify と同等。 |
+| **Transactional Outbox** | ドメインイベントを発行するサービス（album / events / storage / timeline / notifications / audit） | 同一 DB トランザクション内で `outbox_events` に INSERT → Publisher がポーリング配信。QueuePort 直接叩きは禁止。 |
+| **Saga (Choreography)** | 多段ワークフロー（アップロード → 変換 → タイムライン → 通知 など） | 各サービスが `MediaUploaded` / `MediaTranscoded` / `MemoryPublished` を Outbox 経由で連携。補償イベント `*Failed` を必ず定義。 |
+| **Circuit Breaker + Backoff** | 外部呼び出し（FCM / Cognito JWKS / OCI Object Storage / OCI Queue / Postfix / Flipt） | 失敗率 50%（直近 20 件）で Open、30 秒で Half-Open。Retry: base=200ms, factor=2, jitter=±25%, max=3。 |
+| **OpenTelemetry + W3C Trace Context** | 全サービス間通信（HTTP / QueuePort） | `traceparent` を透過的に伝播し、RED メトリクス（Rate / Errors / Duration）を共通ラベルで出力。 |
+| **SLI/SLO + エラーバジェット** | 主要 UX パス（upload / timeline / notification / auth） | Grafana / OCI Monitoring で SLO ダッシュボード。枯渇時は Flag で縮退モード。 |
+| **レート制限** | API Gateway + サービス内チェック | 認証済み 60 req/min、匿名 10 req/min、アップロード 5 req/min。`429` + `Retry-After`。 |
+| **コンテンツ重複排除（CAS）** | storage-svc のみ | SHA-256 でデデュプ、参照カウント管理。E2E 暗号化時は Flag で無効化。 |
+| **Port / Adapter 命名** | 全サービス | `StoragePort` / `QueuePort` / `MailPort` / `MediaTranscoderPort` / `CachePort` / `AuthPort` / `FeatureFlagPort`。`S3*` / `SES*` / `SQS*` 等の命名は禁止。 |
+| **SMTP 送信の最低要件** | notifications-svc（MailPort 実装） | STARTTLS 拡張の広告確認 → TLS 1.2+ で昇格 → AUTH は拡張確認後のみ実行。平文 AUTH 禁止（[クリーンアーキテクチャ: PostfixSMTPAdapter](../clean-architecture/notifications-svc.md#postfixsmtpadapter-mailport-実装)）。 |
+
+## 横断レビュー観点（Peer Review Checklist）
+
+新規 PR / 設計変更のレビュー時に、以下を**必ず確認**する。
+
+1. 禁止キーワード（`S3` / `SES` / `SNS` / `SQS` / `DynamoDB` / `RDS` / `Aurora` / `CloudFront` / `Lambda` / `MinIO` / `ElastiCache`）が**採用文脈**で登場していないか。
+2. Write API に `Idempotency-Key` の受理が記述されているか（または既存の共通ミドルウェアを継承しているか）。
+3. ドメインイベント発行が **Outbox 経由** になっているか（QueuePort 直叩きが残っていないか）。
+4. 外部呼び出しに Circuit Breaker / Retry 方針が明記されているか。
+5. 主要エンドポイントに SLO（p95/p99）が設定されているか。
+6. SMTP 送信がある場合、STARTTLS / TLS 1.2+ / AUTH 拡張確認が実装されているか。
+7. ログに PII（本文・email・電話番号）が含まれていないか。ID 以外の個人情報は書き出さない。
+
 ---
 
-最終更新: 2026-04-19 ポリシー適用
+最終更新: 2026-04-19 ポリシー適用（追加設計プラン反映）
 

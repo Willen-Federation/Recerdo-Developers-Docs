@@ -111,3 +111,36 @@ AWS の利用は **Cognito のみ**（SES/SQS/SNS/S3/DynamoDB/RDS/EC2/EKS/Elasti
 メディアは全環境共通で、**動画は自動 HLS（360p / 720p / 1080p、6 秒セグメント）**、
 **HEIC は libheif で JPEG/WebP に変換**、**Live Photo は `asset_identifier` でペアリング**。
 ハイライトビデオは**ユーザー指定の素材のみ**を結合し、**自動生成や ML による推薦は行わない**。
+
+## 横断パターン { #横断パターン }
+
+[基本的方針（Policy）§8](../core/policy.md#8-大規模類似サービス参照反復版) で定義した横断標準は、クリーンアーキテクチャ上で以下の層に落とし込む。
+
+| パターン | 該当レイヤ | 実装上の責務 |
+| --- | --- | --- |
+| **Idempotency Key** | Interface Adapters（Controller）+ Framework（Redis キャッシュ） | Controller が `Idempotency-Key` ヘッダを読み、`IdempotencyStore` Port（Redis 実装）に問合せてヒット時はキャッシュ応答を返す。UseCase は冪等性を意識しない。 |
+| **Transactional Outbox** | UseCase + Framework（DB） | UseCase が `EventPublisherPort.Publish(event)` を呼び、Adapter 実装が **同一トランザクション内で `outbox_events` に INSERT**。別プロセスのポーラが QueuePort に転送する。 |
+| **Saga (Choreography)** | UseCase（各サービス） | 受信 QueueEvent → UseCase → Outbox に次イベントを書く／補償イベントを書く。中央オーケストレータは置かない。 |
+| **Circuit Breaker** | Interface Adapters（外部サービス Adapter） | Adapter が `gobreaker.CircuitBreaker` をラップし、Open 時は `ErrCircuitOpen` を返す。UseCase は Port 越しに通常のエラーとして扱う。 |
+| **OpenTelemetry** | Framework + Interface Adapters | `context.Context` にスパンを流し、Port 境界でスパンを作成。ドメイン／UseCase 層は OTel SDK に直接依存しない。 |
+| **SLI/SLO 計測** | Framework（middleware） | HTTP ミドルウェア / QueuePort Consumer ラッパでメトリクスを Prometheus Exporter に emit。 |
+| **レート制限** | Interface Adapters（Gateway / Middleware） | Controller 前段のミドルウェアで Token Bucket（Redis Lua）を評価。`RateLimitPort` として抽象化する。 |
+| **Content-Addressable Storage** | UseCase + Infra（storage-svc のみ） | UseCase が SHA-256 を算出し、`MediaBlobRepository.FindBySHA256` → ヒット時は参照カウントのみ増加、未ヒット時のみ `StoragePort.PutObject`。 |
+| **SMTP 最低要件** | Infra Adapter（`PostfixSMTPAdapter`） | STARTTLS 広告確認 → TLS 1.2+ 昇格 → AUTH 拡張確認後にのみ `PlainAuth` 実行。未広告時は **エラーを返して失敗**する（平文 AUTH / 平文配送を禁止）。 |
+
+### 反映のための設計原則
+
+1. **横断標準は Port のインタフェース定義として残す**。UseCase / Entity は実装詳細を知らない。
+2. **Adapter 層で横断標準の実装を提供**。Beta / Prod の差異は Adapter 切替で吸収する。
+3. **Framework 層のラッパでメトリクス・トレース・リトライを注入**。UseCase のコードを汚さない。
+4. **失敗時の責務は UseCase が明示**。`*Failed` ドメインイベントと補償処理は UseCase に記述する。
+
+### 14 セクション構成への影響
+
+本反復以降、各設計書は §14「変更履歴・レビュー記録」に以下を追記する:
+
+- **反映したレビュー指摘**（PR #、コミットハッシュ、指摘概要）
+- **採用した横断標準**（上表のどれを適用したか）
+- **残課題・今後のレビュー観点**
+
+レビュー反復の履歴は [基本的方針（Policy）§8.11](../core/policy.md#8-大規模類似サービス参照反復版) とも整合させる。
