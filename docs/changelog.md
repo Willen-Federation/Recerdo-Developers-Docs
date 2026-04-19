@@ -1,6 +1,6 @@
 # 変更履歴 (Changelog)
 
-Recuerdo Developer Docs の変更履歴です。  
+Recerdo Developer Docs の変更履歴です。  
 各ドキュメントの最終更新日はページ下部にも表示されます。
 
 ---
