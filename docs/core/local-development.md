@@ -12,6 +12,9 @@
 !!! tip "操作手順は別ページ"
     本ページは **設計・方針** ドキュメントです。実際に `tilt up` でシステムを起動する **手順** は [ローカル開発 (Tilt 起動手順)](local-dev.md) を参照してください。両者は役割分担しており、Bootstrap 時は `local-dev.md` → 設計意図を深掘りするときに本ページを参照する導線を想定しています。
 
+!!! warning "このドキュメントが指すリポジトリ"
+    以降で登場する `Tiltfile` / `Makefile` / `deploy/dev/` / `deploy/k3s/` / `.env.local.enc` などの成果物は、本ドキュメントリポジトリ（`Recerdo-Developers-Docs`）ではなく、**アプリケーション本体リポジトリ（`Willen-Federation/recerdo-infra` ほか）** に配置される **将来の** 構成です。本ページはその設計図（SSOT）であり、まだ実装されていない参照は「将来の予定」として読み替えてください。現時点で動く手順は [ローカル開発 (Tilt 起動手順)](local-dev.md) に集約されています。
+
 ---
 
 ## 1. エグゼクティブサマリー
@@ -189,30 +192,42 @@ flowchart TB
 - `TILT_TARGET=k3s`: Colima 同梱 k3s にデプロイ（将来の OKE 移行リハーサル）
 
 ```python
-# Tiltfile (抜粋)
+# Tiltfile (抜粋) — アプリケーション本体リポジトリ (recerdo-infra など) に配置される想定
 load('ext://restart_process', 'docker_build_with_restart')
 
 target = os.environ.get('TILT_TARGET', 'compose')
-profile = os.environ.get('TILT_PROFILE', 'full')  # full | core | media
+# §4.3 で定義する 5 プロファイル (full / core / media / notify / admin)
+profile = os.environ.get('TILT_PROFILE', 'full')
 
 # 1) 共通ミドルウェアは compose から読み込み
 docker_compose('./deploy/dev/docker-compose.infra.yml')
 
 # 2) アプリは Go サービスごとに個別ビルド + live_update
+# 4 要素目: そのサービスの依存先 (resource_deps に渡す他サービス名)
 services = [
-    ('auth-svc',          8001, './services/auth-svc'),
-    ('audit-svc',         8002, './services/audit-svc'),
-    ('album-svc',         8003, './services/album-svc'),
-    ('events-svc',        8004, './services/events-svc'),
-    ('timeline-svc',      8005, './services/timeline-svc'),
-    ('storage-svc',       8006, './services/storage-svc'),
-    ('notifications-svc', 8007, './services/notifications-svc'),
-    ('feature-flag-svc',  8008, './services/feature-flag-svc'),
-    ('admin-console-svc', 8009, './services/admin-console-svc'),
+    ('feature-flag-svc',  8008, './services/feature-flag-svc',  []),
+    ('auth-svc',          8001, './services/auth-svc',          ['feature-flag-svc']),
+    ('audit-svc',         8002, './services/audit-svc',         ['feature-flag-svc']),
+    ('album-svc',         8003, './services/album-svc',         ['auth-svc', 'feature-flag-svc']),
+    ('events-svc',        8004, './services/events-svc',        ['auth-svc', 'feature-flag-svc']),
+    ('timeline-svc',      8005, './services/timeline-svc',      ['auth-svc', 'feature-flag-svc']),
+    ('storage-svc',       8006, './services/storage-svc',       ['auth-svc', 'feature-flag-svc']),
+    ('notifications-svc', 8007, './services/notifications-svc', ['auth-svc', 'feature-flag-svc']),
+    ('admin-console-svc', 8009, './services/admin-console-svc', ['auth-svc', 'feature-flag-svc']),
 ]
 
-for name, port, path in services:
-    if profile == 'core' and name not in ('auth-svc', 'feature-flag-svc', 'audit-svc'):
+# プロファイルごとに含めるサービスを選択
+profile_members = {
+    'full':   {s[0] for s in services},
+    'core':   {'auth-svc', 'audit-svc', 'feature-flag-svc'},
+    'media':  {'storage-svc', 'album-svc', 'feature-flag-svc', 'auth-svc'},
+    'notify': {'notifications-svc', 'feature-flag-svc', 'auth-svc'},
+    'admin':  {'admin-console-svc', 'feature-flag-svc', 'auth-svc'},
+}
+enabled = profile_members[profile]
+
+for name, port, path, deps in services:
+    if name not in enabled:
         continue
     docker_build_with_restart(
         ref='recerdo/' + name + ':dev',
@@ -227,16 +242,14 @@ for name, port, path in services:
                 trigger=[path + '/cmd', path + '/internal']),
         ],
     )
+    # 起動順序 (Feature Flag → auth/audit → 他) は resource_deps で明示
+    active_deps = [d for d in deps if d in enabled]
     if target == 'compose':
-        dc_resource(name, labels=['recerdo'])
+        dc_resource(name, resource_deps=active_deps, labels=['recerdo'])
     else:
         k8s_yaml('./deploy/k3s/' + name + '.yaml')
-        k8s_resource(name, port_forwards=[port], labels=['recerdo'])
-
-# 3) 起動順序（Feature Flag → 認証 → 他サービス）
-for name, _, _ in services:
-    if name not in ('feature-flag-svc',):
-        update_settings(suppress_unused_image_warnings=None)
+        k8s_resource(name, port_forwards=[port],
+                     resource_deps=active_deps, labels=['recerdo'])
 ```
 
 !!! tip "ビルド高速化のポイント"
@@ -353,10 +366,10 @@ docker context use orbstack
     - `QUEUE_PROVIDER=aws-sqs` / `MAIL_PROVIDER=aws-ses` / `MAIL_PROVIDER=sns` も同様。
     - Cognito 本物に接続する場合のみ `AUTH_COGNITO_ENDPOINT` を AWS の JWKS URL に差し替える。
 
-### 6.2 シークレット
+### 6.2 シークレット（整備予定）
 
-- **sops + age** で `.env.local.enc` を Git 管理し、開発者は `age` 公開鍵を交換する。
-- `tilt up` 前に `make dev.decrypt` で復号して `.env.local` に展開する `Makefile` を提供する。
+- **sops + age** で `.env.local.enc` をアプリ側リポに Git 管理し、開発者は `age` 公開鍵を交換する。
+- `tilt up` 前に `make dev.decrypt` で復号して `.env.local` に展開する `Makefile` を提供する **予定**。成果物（`Makefile` / `.env.local.enc` / `deploy/dev/.env.local.example`）が揃うまでは、§7.1 の「現時点で動く代替手順」で `sops --decrypt` を直接叩くか、`.env.local` を手動作成する。
 - `.env.local` は `.gitignore` 対象。
 
 ### 6.3 Flipt のシード
@@ -380,15 +393,35 @@ docker context use orbstack
 
 ## 7. 動作確認手順
 
-### 7.1 初回セットアップ
+### 7.1 初回セットアップ（設計上の最短経路）
+
+アプリケーションリポジトリが揃った後の理想形を示す。`Brewfile` / `Makefile` / `.env.local.enc` は **現時点ではまだ存在せず**、アプリケーション本体リポジトリ側で順次整備する予定のため、現行で動かす場合は下の「現時点で動く代替手順」を使う。
 
 ```bash
-git clone git@github.com:Willen-Federation/Recerdo.git && cd Recerdo
-brew bundle                              # colima / docker / tilt / sops / age
+# 将来の想定（Brewfile / Makefile が整備された後）
+git clone git@github.com:Willen-Federation/recerdo-infra.git && cd recerdo-infra
+brew bundle                              # Brewfile を追加後に有効化
 colima start recerdo --cpu 6 --memory 10 --vz-rosetta
 docker context use colima-recerdo
-make dev.decrypt                         # .env.local を復号
+make dev.decrypt                         # .env.local を復号（sops + age のラッパ）
 tilt up                                  # http://localhost:10350 でダッシュボード
+```
+
+**現時点で動く代替手順**（Brewfile / Makefile が無い前提）:
+
+```bash
+# 依存ツールを明示インストール（§5.1 と同じ）
+brew install colima docker docker-compose docker-buildx tilt-dev/tap/tilt sops age
+
+# VM 起動とコンテキスト切替
+colima start recerdo --cpu 6 --memory 10 --vz-rosetta
+docker context use colima-recerdo
+
+# シークレット復号（Makefile 無しのフォールバック）
+sops --decrypt deploy/dev/.env.local.enc > deploy/dev/.env.local   # ファイルが整備された後
+# あるいは、初回は手元に `.env.local` を手動で作成（§6.1 のカタログを参照）
+
+tilt up
 ```
 
 初回は Garage / MySQL / MariaDB のボリューム初期化に 2〜3 分かかる。Tilt UI で各リソースが `Ready` になるのを確認する。
@@ -428,7 +461,10 @@ open http://localhost:3001    # Grafana
 
 ## 8. Docker Compose との共存（段階的移行）
 
-既存の Beta 運用スクリプト（`deploy/beta/docker-compose.yml`）を残しつつ、開発は Tilt 経由に移行する。Tilt 側の `docker-compose()` でミドルウェアを読み込み、アプリのみ Tilt 管理にすることで **Compose ファイル 1 セット** を両環境で維持する。
+既存の Beta 運用スクリプト（`recerdo-infra/deploy/beta/docker-compose.yml` 想定）を残しつつ、開発は Tilt 経由に移行する。Tilt 側の `docker_compose()` でミドルウェアを読み込み、アプリのみ Tilt 管理にすることで **Compose ファイル 1 セット** を両環境で維持する。
+
+!!! info "パスはアプリ本体リポジトリが前提"
+    以下の表や節 9 で参照する `deploy/` 配下のパスは、アプリケーション本体リポジトリ（`Willen-Federation/recerdo-infra` など）に配置される予定の構成です。本ドキュメントリポジトリには `deploy/` ディレクトリは存在しません。
 
 | 構成要素             | Beta 運用（VPS）                     | ローカル開発                            |
 | -------------------- | ------------------------------------ | --------------------------------------- |
@@ -493,11 +529,16 @@ k3s で動くことを CI で週次チェックすれば、**OKE 移行時に Ma
 
 ---
 
-## 11. 運用 / リリースサイクルへの組み込み
+## 11. 運用 / リリースサイクルへの組み込み（目標）
 
-- **PR ごと**: `tilt ci` を GitHub Actions で実行し、`TILT_PROFILE=core` のスモークを 5 分以内に完了させる。
+現状のアプリケーション本体 CI は `mkdocs build --strict` のみで、Tilt / Colima を実行するワークフローはまだ無い。**将来の運用目標** として以下を設計する（対応するワークフロー追加を伴うため、本ドキュメントだけでは有効化されない）:
+
+- **PR ごと**: `tilt ci` を GitHub Actions で実行し、`TILT_PROFILE=core` のスモークを 5 分以内に完了させる（要: アプリリポ側でワークフロー追加）。
 - **夜間 (nightly)**: Colima 上の k3s で `TILT_TARGET=k3s` を起動し、[environment-abstraction.md](environment-abstraction.md) §6.1 の統合テストマトリクスを回す。
 - **リリース直前**: [deployment-strategy.md](deployment-strategy.md) §5 の Beta → 本番マッピングどおりに環境変数を OCI 向けに差し替え、同じ `Tiltfile` で本番 staging（OKE）の手前まで同一定義で動くことを確認する。
+
+!!! note "CI 連携は別 PR で段階導入"
+    本ページは設計 SSOT であり、実際の GitHub Actions 設定追加は `recerdo-infra` 側で別 PR として提出する。本ページの変更だけで CI が自動的に Tilt を回し始めるわけではない点に注意する。
 
 ---
 

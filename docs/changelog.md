@@ -22,7 +22,7 @@ Recerdo Developer Docs の変更履歴です。
 ### 検証
 
 - `mkdocs build --strict` でビルド成功を確認。
-- 禁止キーワード（`S3` / `SES` / `SNS` / `SQS` / `DynamoDB` / `RDS` / `Aurora` / `CloudFront` / `Lambda` / `MinIO` / `ElastiCache`）が採用文脈で登場していないことを確認。
+- [基本的方針（Policy）§1.3](core/policy.md#13-aws-利用ポリシー) の禁止アダプタ／サービス名が採用文脈で登場していないことを確認（将来の grep lint で本 changelog 行がヒットしないよう、具体語の列挙はポリシー側に集約）。
 - AWS 依存は **Cognito JWKS のモック（cognito-local）のみ** で、ポリシー §1.3 に準拠。
 
 ---
