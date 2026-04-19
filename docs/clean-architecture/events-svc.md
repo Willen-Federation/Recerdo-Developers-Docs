@@ -2,7 +2,7 @@
 
 | 項目                      | 値                                   |
 | ------------------------- | ------------------------------------ |
-| **モジュール/サービス名** | Events Service (recuerdo-events-svc) |
+| **モジュール/サービス名** | Events Service (recerdo-events) |
 | **作成者**                | Akira                                |
 | **作成日**                | 2026-04-13                           |
 | **ステータス**            | ドラフト                             |
@@ -772,13 +772,13 @@ CREATE INDEX idx_event_participants_joined_at ON event_participants(joined_at DE
 
 | 環境 | アダプタ                | 実装                              | キュー識別子                                  |
 | ---- | ----------------------- | --------------------------------- | --------------------------------------------- |
-| Beta | `RedisBullMQAdapter`    | Redis + asynq / BullMQ            | `recuerdo-events` (Redis Stream / asynq queue) |
+| Beta | `RedisBullMQAdapter`    | Redis + asynq / BullMQ            | `recerdo-events` (Redis Stream / asynq queue) |
 | Prod | `OCIQueueAdapter`       | OCI Queue Service                 | OCID: `ocid1.queue.oc1..<tenancy>.<id>`       |
 
 - **メッセージ仕様**:
   - Type: JSON（全環境共通）
   - TTL: 4日
-  - Dead Letter Queue: `recuerdo-events-dlq`（max receive count: 3）
+  - Dead Letter Queue: `recerdo-events-dlq`（max receive count: 3）
 - **消費者**: Album Service, Timeline Service, Notifications Service
 
 ### 6.4 外部ライブラリ＆SDK
@@ -908,7 +908,7 @@ func registerHandlers(
 ## 7. ディレクトリ構成
 
 ```
-recuerdo-events-svc/
+recerdo-events/
 ├── cmd/
 │   └── main.go                 # アプリケーション起動エントリポイント
 ├── internal/

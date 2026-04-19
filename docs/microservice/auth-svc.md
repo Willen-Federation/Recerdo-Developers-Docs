@@ -1,4 +1,4 @@
-# Authentication Service (recuerdo-auth-svc)
+# Authentication Service (recerdo-auth)
 
 **作成者**: Akira · **作成日**: 2026-04-13 · **ステータス**: Draft
 
@@ -392,7 +392,7 @@ type RateLimitPort interface {
 | ---------------------- | ---------------------------- | ------------------------------------------------------- |
 | CognitoAuthPort        | AWSCognitoAdapter            | AWS Cognito (InitiateAuth, GetUser)                     |
 | JWTSignerPort          | RSA256JWTSigner              | ローカルRSA秘密鍵（Cognito公開鍵で検証）                |
-| PermissionPort         | PermissionServiceGRPCAdapter | recuerdo-permission-svc (gRPC)                          |
+| PermissionPort         | PermissionServiceGRPCAdapter | recerdo-permission (gRPC)                          |
 | EventPublisherPort     | QueueEventPublisher          | QueuePort（Beta: Redis+BullMQ/asynq、本番: OCI Queue Service）Topic: `recuerdo.auth.*`, `recuerdo.gateway.*` |
 | QueuePort              | **Beta:** `RedisBullMQAdapter` / `AsynqAdapter` / **本番:** `OCIQueueAdapter` | Redis 7.x + BullMQ/asynq / OCI Queue Service |
 | RateLimitPort          | RedisRateLimitAdapter        | Redis 7.x (rate_limit:login:{phone}:{minute} 等)        |
@@ -476,7 +476,7 @@ fx.Provide(
 ### ディレクトリツリー
 
 ```
-recuerdo-auth-svc/
+recerdo-auth/
 ├── cmd/server/main.go
 ├── internal/
 │   ├── domain/

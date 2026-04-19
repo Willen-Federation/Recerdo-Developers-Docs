@@ -2,7 +2,7 @@
 
 | 項目                      | 値                                 |
 | ------------------------- | ---------------------------------- |
-| **モジュール/サービス名** | Audit Service (recuerdo-audit-svc) |
+| **モジュール/サービス名** | Audit Service (recerdo-audit) |
 | **作成者**                | Akira                              |
 | **作成日**                | 2026-04-13                         |
 | **ステータス**            | ドラフト                           |
@@ -680,8 +680,8 @@ CREATE INDEX idx_gdpr_status  ON gdpr_anonymizations (status, created_at DESC);
 - **QueuePort**: イベント非同期処理（AWS SQS は使用しない）
   - Beta: `RedisBullMQAdapter`（Redis + asynq / BullMQ、self-hosted）
   - Prod: `OCIQueueAdapter`（OCI Queue Service）
-  - キュー名: `recuerdo-audit-events-queue`
-  - DLQ: `recuerdo-audit-events-dlq`
+  - キュー名: `recerdo-audit-events-queue`
+  - DLQ: `recerdo-audit-events-dlq`
   - メッセージ保有期間: 1 日
   - 可視性タイムアウト: 5 分
 
@@ -813,7 +813,7 @@ func startServer(
 ## 7. ディレクトリ構成
 
 ```
-recuerdo-audit-svc/
+recerdo-audit/
 ├── cmd/
 │   ├── main.go                 # エントリポイント
 │   └── migrations/             # DB マイグレーション

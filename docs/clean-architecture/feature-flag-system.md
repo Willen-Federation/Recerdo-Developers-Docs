@@ -2,7 +2,7 @@
 
 | 項目                      | 値                                              |
 | ------------------------- | ----------------------------------------------- |
-| **モジュール/サービス名** | Feature Flag System (recuerdo-feature-flag-svc) |
+| **モジュール/サービス名** | Feature Flag System (recerdo-feature-flag) |
 | **作成者**                | Claude (AI)                                     |
 | **作成日**                | 2026-04-19                                      |
 | **ステータス**            | 承認済み (Approved)                             |

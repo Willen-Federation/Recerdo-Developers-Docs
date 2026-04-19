@@ -101,14 +101,14 @@ graph TB
 
 | サービス | リポジトリ | 役割 |
 |---------|---------|------|
-| API Gateway | recuerdo-api-gateway | ルーティング・Cognito JWKS 検証 |
-| Auth Service (Deprecated) | recuerdo-auth-svc | AWS Cognito へ移行中 |
-| Permission Service | recuerdo-permission-svc | 認可・ロール・組織権限 |
-| Events Service | recuerdo-events-svc | イベント・招待 |
-| Album Service | recuerdo-album-svc | アルバム・写真 |
-| Storage Service | recuerdo-storage-svc | メディアファイル |
-| Timeline Service | recuerdo-timeline-svc | フィード・タイムライン |
-| Audit Service | recuerdo-audit-svc | 監査ログ（横断的） |
+| API Gateway | recerdo-api-gateway | ルーティング・Cognito JWKS 検証 |
+| Auth Service (Deprecated) | recerdo-auth | AWS Cognito へ移行中 |
+| Permission Service | recerdo-permission | 認可・ロール・組織権限 |
+| Events Service | recerdo-events | イベント・招待 |
+| Album Service | recerdo-album | アルバム・写真 |
+| Storage Service | recerdo-storage | メディアファイル |
+| Timeline Service | recerdo-timeline | フィード・タイムライン |
+| Audit Service | recerdo-audit | 監査ログ（横断的） |
 
 ---
 

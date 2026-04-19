@@ -1,6 +1,6 @@
 # Album API
 
-`recuerdo-album-svc` が提供するアルバム・メディア管理APIです。
+`recerdo-album` が提供するアルバム・メディア管理APIです。
 
 ---
 
