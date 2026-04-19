@@ -82,7 +82,11 @@ while IFS= read -r line || [ -n "$line" ]; do
     fi
     prs_json=$(jq -cn --argjson current "$prs_json" --argjson page "$pr_page_json" '$current + $page')
     pr_oldest_updated=$(echo "$pr_page_json" | jq -r '.[-1].updated_at // empty' 2>/dev/null || true)
-    pr_oldest_updated_epoch=$(date -u -d "$pr_oldest_updated" +%s 2>/dev/null || echo 0)
+    if [ -n "$pr_oldest_updated" ]; then
+      pr_oldest_updated_epoch=$(date -u -d "$pr_oldest_updated" +%s 2>/dev/null || echo 0)
+    else
+      pr_oldest_updated_epoch=0
+    fi
     if [ "$pr_oldest_updated_epoch" -gt 0 ] && [ "$pr_oldest_updated_epoch" -lt "$since_epoch" ]; then
       break
     fi
