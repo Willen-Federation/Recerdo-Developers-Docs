@@ -12,6 +12,9 @@
 !!! tip "操作手順は別ページ"
     本ページは **設計・方針** ドキュメントです。実際に `tilt up` でシステムを起動する **手順** は [ローカル開発 (Tilt 起動手順)](local-dev.md) を参照してください。両者は役割分担しており、Bootstrap 時は `local-dev.md` → 設計意図を深掘りするときに本ページを参照する導線を想定しています。
 
+!!! note "パス表記について"
+    本ページ内の `deploy/` や `Makefile` は、**アプリ本体リポジトリ（`Willen-Federation/Recerdo`）側の想定構成例**です。本ドキュメントリポジトリ（`Recerdo-Developers-Docs`）には含まれません。
+
 ---
 
 ## 1. エグゼクティブサマリー
@@ -179,7 +182,7 @@ flowchart TB
 | サービスごとの状態可視化                                       | Tilt UI（`tilt up` で `http://localhost:10350` にダッシュボード） |
 | 個別サービスだけ rebuild する                                  | Tilt UI から `Rebuild` ボタン、CLI `tilt trigger`                |
 | Compose / Kubernetes の **二重運用**                            | `docker_compose()` と `k8s_yaml()` を同じ `Tiltfile` で両立      |
-| CI / 手動開発の **統一**                                       | `tilt ci` で非対話モード、PR ごとのスモークテストが可能          |
+| CI / 手動開発の **統一**                                       | `tilt ci` で非対話モード、PR ごとのスモークテストを将来導入可能  |
 
 ### 4.2 Tiltfile 構成方針
 
@@ -193,7 +196,7 @@ flowchart TB
 load('ext://restart_process', 'docker_build_with_restart')
 
 target = os.environ.get('TILT_TARGET', 'compose')
-profile = os.environ.get('TILT_PROFILE', 'full')  # full | core | media
+profile = os.environ.get('TILT_PROFILE', 'full')  # full | core | media | notify | admin
 
 # 1) 共通ミドルウェアは compose から読み込み
 docker_compose('./deploy/dev/docker-compose.infra.yml')
@@ -228,15 +231,20 @@ for name, port, path in services:
         ],
     )
     if target == 'compose':
-        dc_resource(name, labels=['recerdo'])
+        deps = []
+        if name == 'auth-svc':
+            deps = ['feature-flag-svc']
+        elif name != 'feature-flag-svc':
+            deps = ['auth-svc']
+        dc_resource(name, labels=['recerdo'], resource_deps=deps)
     else:
         k8s_yaml('./deploy/k3s/' + name + '.yaml')
-        k8s_resource(name, port_forwards=[port], labels=['recerdo'])
-
-# 3) 起動順序（Feature Flag → 認証 → 他サービス）
-for name, _, _ in services:
-    if name not in ('feature-flag-svc',):
-        update_settings(suppress_unused_image_warnings=None)
+        deps = []
+        if name == 'auth-svc':
+            deps = ['feature-flag-svc']
+        elif name != 'feature-flag-svc':
+            deps = ['auth-svc']
+        k8s_resource(name, port_forwards=[port], labels=['recerdo'], resource_deps=deps)
 ```
 
 !!! tip "ビルド高速化のポイント"
@@ -264,7 +272,7 @@ for name, _, _ in services:
 
 ```bash
 # macOS (Homebrew)
-brew install colima docker docker-compose docker-buildx tilt-dev/tap/tilt
+brew install colima docker docker-compose docker-buildx tilt-dev/tap/tilt sops age
 
 # Linux は distro のパッケージマネージャで colima を導入
 
@@ -324,7 +332,7 @@ docker context use orbstack
 
 ## 6. 環境変数と Feature Flag
 
-[環境抽象化](environment-abstraction.md) の `.env.local` パターンをそのまま使う。ローカル固有値は `deploy/dev/.env.local.example` にテンプレート化する。
+[環境抽象化](environment-abstraction.md) の `.env.local` パターンをそのまま使う。ローカル固有値は（アプリ本体リポジトリ側の）`deploy/dev/.env.local.example` にテンプレート化する。
 
 ### 6.1 ローカル規定値
 
@@ -356,7 +364,7 @@ docker context use orbstack
 ### 6.2 シークレット
 
 - **sops + age** で `.env.local.enc` を Git 管理し、開発者は `age` 公開鍵を交換する。
-- `tilt up` 前に `make dev.decrypt` で復号して `.env.local` に展開する `Makefile` を提供する。
+- `tilt up` 前に `.env.local.enc` を復号して `.env.local` に展開する（例: `sops -d .env.local.enc > .env.local`）。`make dev.decrypt` はアプリ本体リポジトリ側で用意する場合の例とする。
 - `.env.local` は `.gitignore` 対象。
 
 ### 6.3 Flipt のシード
@@ -384,10 +392,10 @@ docker context use orbstack
 
 ```bash
 git clone git@github.com:Willen-Federation/Recerdo.git && cd Recerdo
-brew bundle                              # colima / docker / tilt / sops / age
+brew install colima docker docker-compose docker-buildx tilt-dev/tap/tilt sops age
 colima start recerdo --cpu 6 --memory 10 --vz-rosetta
 docker context use colima-recerdo
-make dev.decrypt                         # .env.local を復号
+sops -d .env.local.enc > .env.local     # 暗号化ファイル運用時（平文テンプレート運用なら cp で代替）
 tilt up                                  # http://localhost:10350 でダッシュボード
 ```
 
@@ -428,7 +436,7 @@ open http://localhost:3001    # Grafana
 
 ## 8. Docker Compose との共存（段階的移行）
 
-既存の Beta 運用スクリプト（`deploy/beta/docker-compose.yml`）を残しつつ、開発は Tilt 経由に移行する。Tilt 側の `docker-compose()` でミドルウェアを読み込み、アプリのみ Tilt 管理にすることで **Compose ファイル 1 セット** を両環境で維持する。
+既存の Beta 運用スクリプト（アプリ本体リポジトリの `deploy/beta/docker-compose.yml`）を残しつつ、開発は Tilt 経由に移行する。Tilt 側の `docker-compose()` でミドルウェアを読み込み、アプリのみ Tilt 管理にすることで **Compose ファイル 1 セット** を両環境で維持する。
 
 | 構成要素             | Beta 運用（VPS）                     | ローカル開発                            |
 | -------------------- | ------------------------------------ | --------------------------------------- |
@@ -447,7 +455,7 @@ open http://localhost:3001    # Grafana
 
 本番は OCI Container Instances を起点に、スケール要件に応じて OKE（Kubernetes）へ移行する方針（[policy.md](policy.md) §1.2）。`Tiltfile` は最初から **k8s_yaml 経路を実装** しておき、開発者が任意でローカル k3s に切り替えられるようにする。
 
-### 9.1 マニフェスト配置
+### 9.1 マニフェスト配置（アプリ本体リポジトリ例）
 
 ```
 deploy/
@@ -493,10 +501,11 @@ k3s で動くことを CI で週次チェックすれば、**OKE 移行時に Ma
 
 ---
 
-## 11. 運用 / リリースサイクルへの組み込み
+## 11. 運用 / リリースサイクルへの組み込み（導入案）
 
-- **PR ごと**: `tilt ci` を GitHub Actions で実行し、`TILT_PROFILE=core` のスモークを 5 分以内に完了させる。
-- **夜間 (nightly)**: Colima 上の k3s で `TILT_TARGET=k3s` を起動し、[environment-abstraction.md](environment-abstraction.md) §6.1 の統合テストマトリクスを回す。
+- **現状（この docs リポジトリ）**: GitHub Actions は `mkdocs build --strict` のみを実行。
+- **将来案（アプリ本体リポジトリ）**: PR ごとに `tilt ci` を実行し、`TILT_PROFILE=core` のスモークを 5 分以内に完了させる。
+- **将来案（nightly）**: Colima 上の k3s で `TILT_TARGET=k3s` を起動し、[environment-abstraction.md](environment-abstraction.md) §6.1 の統合テストマトリクスを回す。
 - **リリース直前**: [deployment-strategy.md](deployment-strategy.md) §5 の Beta → 本番マッピングどおりに環境変数を OCI 向けに差し替え、同じ `Tiltfile` で本番 staging（OKE）の手前まで同一定義で動くことを確認する。
 
 ---
