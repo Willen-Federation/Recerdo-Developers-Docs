@@ -57,8 +57,12 @@ while IFS= read -r line || [ -n "$line" ]; do
   fi
 
   # コミット (default branch, since 範囲)
-  commits_json=$(fetch_paginated_array \
-    "repos/${ORG}/${repo}/commits?sha=${default_branch}&since=${SINCE_UTC}&per_page=100")
+  commits_json=$(gh api --paginate "repos/${ORG}/${repo}/commits" \
+    -f sha="$default_branch" \
+    -f since="$SINCE_UTC" \
+    -f per_page=100 2>/dev/null \
+    | jq -s 'map(if type == "array" then . else [] end) | add' 2>/dev/null \
+    || echo '[]')
 
   commits_md=$(echo "$commits_json" | jq -r '
     map(select((.parents | length) < 2))

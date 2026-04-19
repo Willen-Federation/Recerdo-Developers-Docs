@@ -63,7 +63,7 @@ jobs:
           GH_TOKEN: ${{ secrets.WIKI_SYNC_TOKEN }}
         run: |
           set +e
-          git -c http.extraheader="authorization: bearer ${GH_TOKEN}" \
+          git -c http.extraheader="Authorization: Bearer ${GH_TOKEN}" \
             clone "https://github.com/${{ github.repository }}.wiki.git" wiki 2>clone.err
           rc=$?
           set -e
