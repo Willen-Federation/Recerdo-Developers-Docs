@@ -216,7 +216,6 @@ services = [
 
 common_services = {'feature-flag-svc'}
 profile_services = {
-    'full': None,  # 全サービス
     'core': common_services | {'auth-svc', 'audit-svc'},
     'media': common_services | {'storage-svc', 'album-svc'},
     'notify': common_services | {'notifications-svc'},
@@ -231,7 +230,7 @@ def service_deps(name):
     return ['auth-svc']
 
 for name, port, path in services:
-    if profile_services.get(profile) and name not in profile_services[profile]:
+    if profile in profile_services and name not in profile_services[profile]:
         continue
     docker_build_with_restart(
         ref='recerdo/' + name + ':dev',
