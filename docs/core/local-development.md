@@ -196,7 +196,7 @@ flowchart TB
 load('ext://restart_process', 'docker_build_with_restart')
 
 target = os.environ.get('TILT_TARGET', 'compose')
-profile = os.environ.get('TILT_PROFILE', 'full')  # full | core | media | notify | admin
+profile = os.environ.get('TILT_PROFILE', 'full')  # full(既定: フィルタなし) | core | media | notify | admin
 
 # 1) 共通ミドルウェアは compose から読み込み
 docker_compose('./deploy/dev/docker-compose.infra.yml')
@@ -230,6 +230,7 @@ def service_deps(name):
     return ['auth-svc']
 
 for name, port, path in services:
+    # full は profile_services に入れず「全サービス対象」にする
     if profile in profile_services and name not in profile_services[profile]:
         continue
     docker_build_with_restart(
@@ -278,7 +279,9 @@ for name, port, path in services:
 
 ```bash
 # macOS (Homebrew)
-brew install colima docker docker-compose docker-buildx tilt-dev/tap/tilt sops age
+brew install \
+  colima docker docker-compose docker-buildx \
+  tilt-dev/tap/tilt sops age
 
 # Linux は distro のパッケージマネージャで colima を導入
 
@@ -398,7 +401,9 @@ docker context use orbstack
 
 ```bash
 git clone git@github.com:Willen-Federation/Recerdo.git && cd Recerdo
-brew install colima docker docker-compose docker-buildx tilt-dev/tap/tilt sops age
+brew install \
+  colima docker docker-compose docker-buildx \
+  tilt-dev/tap/tilt sops age
 colima start recerdo --cpu 6 --memory 10 --vz-rosetta
 docker context use colima-recerdo
 sops -d .env.local.enc > .env.local     # 暗号化ファイル運用時（平文テンプレート運用なら cp で代替）
