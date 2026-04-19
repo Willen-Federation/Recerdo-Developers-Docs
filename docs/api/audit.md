@@ -1,6 +1,6 @@
 # Audit API
 
-`recuerdo-audit-svc` が提供する監査ログ管理APIです。
+`recerdo-audit` が提供する監査ログ管理APIです。
 
 !!! warning "管理者専用"
     このAPIは管理者ロール (`ROLE_ADMIN`) を持つユーザーのみアクセス可能です。

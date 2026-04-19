@@ -2,7 +2,7 @@
 
 | 項目                      | 値                                       |
 | ------------------------- | ---------------------------------------- |
-| **モジュール/サービス名** | Timeline Service (recuerdo-timeline-svc) |
+| **モジュール/サービス名** | Timeline Service (recerdo-timeline) |
 | **作成者**                | Akira                                    |
 | **作成日**                | 2026-04-13                               |
 | **ステータス**            | ドラフト                                 |
@@ -867,7 +867,7 @@ func registerHandlers(
 ## 7. ディレクトリ構成
 
 ```
-recuerdo-timeline-svc/
+recerdo-timeline/
 ├── cmd/
 │   ├── main.go                 # アプリケーション起動
 │   └── consumer/

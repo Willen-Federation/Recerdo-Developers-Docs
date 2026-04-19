@@ -1,6 +1,6 @@
 # Events API
 
-`recuerdo-events-svc` が提供するイベント・招待・参加者管理APIです。
+`recerdo-events` が提供するイベント・招待・参加者管理APIです。
 
 ---
 

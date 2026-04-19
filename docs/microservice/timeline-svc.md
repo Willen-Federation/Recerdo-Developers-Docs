@@ -1,4 +1,4 @@
-# Timeline Module (recuerdo-timeline-svc)
+# Timeline Module (recerdo-timeline)
 
 **作成者**: Akira · **作成日**: 2026-04-14 · **ステータス**: Draft
 
@@ -442,7 +442,7 @@ type QueueEventConsumerPort interface {
 
 | ポートインターフェース | アダプタクラス               | 外部システム                                                                |
 | ---------------------- | ---------------------------- | --------------------------------------------------------------------------- |
-| PermissionPort         | PermissionServiceGRPCAdapter | recuerdo-permission-svc (gRPC CheckFriendship, GetUser)                     |
+| PermissionPort         | PermissionServiceGRPCAdapter | recerdo-permission (gRPC CheckFriendship, GetUser)                     |
 | EventPublisherPort     | QueueEventPublisher          | QueuePort トピック `recuerdo.timeline.events`（Beta: Redis+BullMQ/asynq、本番: OCI Queue Service） |
 | QueueEventConsumerPort | QueueEventConsumer           | QueuePort トピック `recuerdo.events.service.published`, `recuerdo.auth.friendship_created`, `recuerdo.events.deleted` |
 
@@ -522,7 +522,7 @@ fx.Provide(
 ### ディレクトリツリー
 
 ```
-recuerdo-timeline-svc/
+recerdo-timeline/
 ├── cmd/server/
 │   ├── main.go
 │   └── wire.go                    # fx DI setup

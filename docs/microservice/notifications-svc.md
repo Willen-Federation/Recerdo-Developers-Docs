@@ -1,4 +1,4 @@
-# 通知サービス (recuerdo-notifications-svc)
+# 通知サービス (recerdo-notifications)
 
 **作成者**: Claude (AI) · **作成日**: 2026-04-15 · **ステータス**: 提案 (Proposal)
 
