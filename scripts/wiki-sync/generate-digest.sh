@@ -69,6 +69,7 @@ while IFS= read -r line || [ -n "$line" ]; do
 
   # マージ済みPR
   # merged_at >= SINCE_UTC のPR
+  since_epoch=$(date -u -d "$SINCE_UTC" +%s 2>/dev/null || echo 0)
   prs_json='[]'
   pr_page=1
   while :; do
@@ -81,7 +82,8 @@ while IFS= read -r line || [ -n "$line" ]; do
     fi
     prs_json=$(jq -cn --argjson current "$prs_json" --argjson page "$pr_page_json" '$current + $page')
     pr_oldest_updated=$(echo "$pr_page_json" | jq -r '.[-1].updated_at // empty' 2>/dev/null || true)
-    if [ -n "$pr_oldest_updated" ] && [[ "$pr_oldest_updated" < "$SINCE_UTC" ]]; then
+    pr_oldest_updated_epoch=$(date -u -d "$pr_oldest_updated" +%s 2>/dev/null || echo 0)
+    if [ "$pr_oldest_updated_epoch" -gt 0 ] && [ "$pr_oldest_updated_epoch" -lt "$since_epoch" ]; then
       break
     fi
     pr_page=$((pr_page + 1))
