@@ -5,6 +5,16 @@ Recerdo Developer Docs の変更履歴です。
 
 ---
 
+## v0.7.0 — 2026-04-19 (追加設計プラン・大規模類似サービス徹底反映)
+
+### 変更・追加
+
+- **`core/policy.md`**: コミット `464267137d7c63f159d732d47d55a8de16d7093f` のレビュー指摘（STARTTLS 必須、旧システム記述削除、横断一貫性不足）をもとに、§8「追加設計プラン」を大幅に拡充。Instagram, Twitter, Stripe などの大規模システムモデルを使った横断要件（Push-first厳格化, DLQ & Circuit Breaker, 縮退運転/Graceful Degradation、SLO）を明確化。
+- **`microservice/timeline-svc.md` & `clean-architecture/timeline-svc.md`**: Fan-out on Write と フォロワー数500超での Fan-out on Read を切り替える構成（Hybrid Fan-out）および、Redisキャッシュのフォールバック・Heavy APIの Feature Flag 制御による**縮退パス（Graceful Degradation）** を追記。
+- **全Write API (Outbox適用)**: Transactional Outbox + 冪等性（Idempotency-Key 24時間保持）を全サービス横断の責務として各設計書に再適用し、Sagaの信頼性を向上。
+
+---
+
 ## v0.6.3 — 2026-04-19 (追加設計プラン再整理・Iteration-02)
 
 ### 変更
