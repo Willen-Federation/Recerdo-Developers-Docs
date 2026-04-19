@@ -8,7 +8,7 @@
 
 ### 目的
 
-Recuerdoアプリケーションのイベント（パーティー・旅行・同窓会等の「思い出の瞬間」）管理を一元化するマイクロサービス。各組織（org）に紐づく複数のイベントを作成・更新・アーカイブし、イベントコード（e.g. "SUMMER-PARTY-2026"）による招待機能を提供する。イベントはアルバム・メディア・タイムラインの組織化単位として機能し、イベント作成時にはAlbum Serviceへ自動でアルバムを作成、メンバー招待時にはNotification Serviceへメール送信を依頼する。イベントのライフサイクル（DRAFT→ACTIVE→ARCHIVED）・招待ステータス（PENDING→ACCEPTED/DECLINED）・メンバー権限（OWNER/ADMIN/MEMBER/GUEST）を厳密に管理し、ドメインイベント（EventCreated・EventInvitationSent等）をSQS経由で下流サービスへ伝播する。
+Recuerdoアプリケーションのイベント（パーティー・旅行・同窓会等の「思い出の瞬間」）管理を一元化するマイクロサービス。各組織（org）に紐づく複数のイベントを作成・更新・アーカイブし、イベントコード（e.g. "SUMMER-PARTY-2026"）による招待機能を提供する。イベントはアルバム・メディア・タイムラインの組織化単位として機能し、イベント作成時にはAlbum Serviceへ自動でアルバムを作成、メンバー招待時にはNotification Serviceへメール送信を依頼する。イベントのライフサイクル（DRAFT→ACTIVE→ARCHIVED）・招待ステータス（PENDING→ACCEPTED/DECLINED）・メンバー権限（OWNER/ADMIN/MEMBER/GUEST）を厳密に管理し、ドメインイベント（EventCreated・EventInvitationSent等）を QueuePort（Beta: Redis+BullMQ/asynq、本番: OCI Queue Service）経由で下流サービスへ伝播する（[基本的方針](../core/policy.md) 参照）。
 
 ### ビジネスコンテキスト
 
@@ -305,7 +305,7 @@ func (r EventRole) CanEdit() bool {
    - role = OWNER
    - joined_via = DIRECT
    - user_id = created_by
-7. SQS EventPublisher.Publish(EventCreated)
+7. QueuePort.Publish(EventCreated)
    - payload: {event_id, org_id, title, created_by, status, created_at}
    - 下流: Album Service (アルバム自動作成), Timeline Service
 8. レスポンス:
@@ -349,7 +349,7 @@ POST /api/orgs/{org_id}/events/{event_id}/invitations リクエスト
    - invited_at = now
    - expires_at = now + 30days
 6. EventInvitationRepository.Create(invitation)
-7. SQS EventPublisher.Publish(EventInvitationSent)
+7. QueuePort.Publish(EventInvitationSent)
    - payload: {event_id, org_id, invitation_id, email, invited_by, expires_at}
    - 下流: Notification Service (メール送信)
 8. レスポンス:
@@ -385,7 +385,7 @@ POST /api/events/join/{event_code} リクエスト (認証済みユーザー)
    - user_id, email 記録
    - joined_at = now
 5. EventParticipantRepository.Create(participant)
-6. SQS EventPublisher.Publish(UserJoinedEventByCode)
+6. QueuePort.Publish(UserJoinedEventByCode)
    - payload: {event_id, org_id, user_id, email, event_code, joined_at}
    - 下流: Notification Service (参加通知)
 7. レスポンス:
@@ -503,10 +503,10 @@ type EventPublisherPort interface {
 
 | ポートインターフェース     | 実装クラス                      | データストア                         |
 | -------------------------- | ------------------------------- | ------------------------------------ |
-| EventRepository            | MySQLEventRepository            | MySQL 14+ (events table)             |
-| EventInvitationRepository  | MySQLEventInvitationRepository  | MySQL 14+ (event_invitations table)  |
-| EventCodeRepository        | MySQLEventCodeRepository        | MySQL 14+ (event_codes table)        |
-| EventParticipantRepository | MySQLEventParticipantRepository | MySQL 14+ (event_participants table) |
+| EventRepository            | MySQLEventRepository            | MySQL 8.0 / MariaDB 10.11 (events table)             |
+| EventInvitationRepository  | MySQLEventInvitationRepository  | MySQL 8.0 / MariaDB 10.11 (event_invitations table)  |
+| EventCodeRepository        | MySQLEventCodeRepository        | MySQL 8.0 / MariaDB 10.11 (event_codes table)        |
+| EventParticipantRepository | MySQLEventParticipantRepository | MySQL 8.0 / MariaDB 10.11 (event_participants table) |
 
 ### 外部サービスアダプタ
 
@@ -514,9 +514,9 @@ type EventPublisherPort interface {
 | ---------------------- | ----------------------------- | -------------------------------------------- |
 | PermissionPort         | PermissionServiceGRPCAdapter  | recuerdo-permission-svc (gRPC)               |
 | EventCodeGeneratorPort | UUIDSlugCodeGenerator         | 内部実装（タイトル + ランダム部で生成）      |
-| NotificationPort       | NotificationServiceSQSAdapter | AWS SQS + recuerdo-notification-svc (非同期) |
+| NotificationPort       | NotificationServiceQueueAdapter | QueuePort（Beta: Redis+BullMQ/asynq、本番: OCI Queue）→ recuerdo-notifications-svc |
 | AuthServicePort        | AuthServiceGRPCAdapter        | recuerdo-auth-svc (gRPC)                     |
-| EventPublisherPort     | SQSEventPublisher             | AWS SQS (recuerdo-events-service-events)     |
+| EventPublisherPort     | QueueEventPublisher           | QueuePort トピック `recuerdo.events.*`（Beta: Redis+BullMQ/asynq、本番: OCI Queue Service） |
 
 ## 5. インフラストラクチャ層
 
@@ -526,7 +526,7 @@ Go 1.22 + net/http (HTTPサーバー) + gorilla/mux (ルーティング)
 
 ### データベース
 
-MySQL 14+
+MySQL 8.0 / MariaDB 10.11
 
 **テーブル定義:**
 
@@ -620,12 +620,14 @@ CREATE INDEX idx_participants_org_user ON event_participants(org_id, user_id);
 
 | ライブラリ                          | 目的                                          | レイヤー                |
 | ----------------------------------- | --------------------------------------------- | ----------------------- |
-| github.com/lib/pq                   | MySQL ドライバ                                | Infrastructure          |
+| github.com/go-sql-driver/mysql      | MySQL 8.0 / MariaDB 10.11 ドライバ            | Infrastructure          |
 | github.com/jmoiron/sqlc             | SQL→Go型安全コード生成                        | Infrastructure          |
 | oklog/ulid                          | ULID生成・パース                              | Domain / Infrastructure |
 | github.com/google/uuid              | UUID生成                                      | Infrastructure          |
 | google.golang.org/grpc              | gRPC クライアント（Permission・Auth Service） | Infrastructure          |
-| aws-sdk-go-v2/service/sqs           | SQS イベント発行                              | Infrastructure          |
+| hibiken/asynq                       | QueuePort Beta 実装（asynq）                  | Infrastructure          |
+| taskforcesh/bullmq (Node ワーカー)  | QueuePort Beta 実装（Redis+BullMQ）           | Infrastructure          |
+| oracle/oci-go-sdk                   | QueuePort 本番実装（OCI Queue Service）       | Infrastructure          |
 | github.com/gorilla/mux              | HTTP ルーティング                             | Adapter                 |
 | uber-go/fx                          | 依存性注入                                    | Infrastructure          |
 | uber-go/zap                         | 構造化ログ                                    | Infrastructure          |
@@ -647,9 +649,9 @@ fx.Provide(
     // Service Adapters
     NewPermissionServiceGRPCAdapter,  // → PermissionPort
     NewAuthServiceGRPCAdapter,        // → AuthServicePort
-    NewNotificationServiceSQSAdapter, // → NotificationPort
-    NewUUIDSlugCodeGenerator,         // → EventCodeGeneratorPort
-    NewSQSEventPublisher,             // → EventPublisherPort
+    NewNotificationServiceQueueAdapter, // → NotificationPort (QueuePort)
+    NewUUIDSlugCodeGenerator,           // → EventCodeGeneratorPort
+    NewQueueEventPublisher,             // → EventPublisherPort (Beta: Redis+BullMQ/asynq、本番: OCI Queue)
     
     // Use Cases
     NewCreateEventUseCase,
@@ -792,7 +794,7 @@ recuerdo-events-svc/
 | UseCase                     | Unit test        | mockeryで全ポート（PermissionPort/NotificationPort等）をモック | CreateEventUseCase, InviteMemberByEmailUseCase, RespondToInvitationUseCase                  |
 | Adapter (HTTP)              | Integration test | httptest.Server + モック下流サービス                           | POST /api/orgs/{org_id}/events, GET /api/events/join/{code}                                 |
 | Infrastructure (MySQL)      | Integration test | testcontainers-go でMySQL14コンテナを起動                      | EventRepository.Create(), EventInvitationRepository.ListExpiredPending()                    |
-| E2E                         | E2E test         | MySQL + SQS (LocalStack) + gRPC モック                         | イベント作成→招待→返答→参加の完全シナリオ                                                   |
+| E2E                         | E2E test         | MySQL 8.0/MariaDB 10.11 + Redis+BullMQ (testcontainers) + gRPC モック | イベント作成→招待→返答→参加の完全シナリオ                                            |
 | Security test               | Penetration test | OWASP ZAP + カスタム検証                                       | SQL injection, authorization bypass, code enumeration                                       |
 
 ### テストコード例
@@ -1036,10 +1038,14 @@ func TestEventInvitationRepository_ListExpiredPending(t *testing.T) {
 | 1   | イベント削除時、関連する招待・参加者レコードは物理削除か論理削除か                                                      | Open       | 論理削除（deleted_atフラグ）推奨。イベント履歴・監査を残すため                                  |
 | 2   | EventCode再生成時、古いコードの無効化は即座か、一定期間有効を保つか                                                     | Open       | 即座に無効化推奨。セキュリティ観点から。ただしUI上「古いコードはまだ有効か」を確認必要          |
 | 3   | メンバー削除時、EventParticipantのロール削除か、ステータス遷移（ACTIVE→REMOVED等）か                                    | Open       | EventParticipant物理削除推奨。権限チェックシンプル化のため                                      |
-| 4   | 招待メール送信失敗時（Notification Service ダウン）の再試行戦略は何か                                                   | Open       | SQS DeadLetterQueueで再試行管理。Notification Service復旧後、管理画面から手動再送オプション検討 |
+| 4   | 招待メール送信失敗時（Notification Service ダウン）の再試行戦略は何か                                                   | ✅ Decided  | QueuePort の DLQ（Beta: BullMQ failed queue / asynq archived queue、本番: OCI Queue DLQ）で最大 3 回再試行、その後 admin-console-svc から手動再送 |
 | 5   | イベント開始日前のドラフトイベント一覧取得時、パフォーマンス低下対策（キャッシング等）は必要か                          | Open       | Redis キャッシング 5分TTL検討。ただし初期段階ではDB直クエリで様子見                             |
 | 6   | 招待有効期限30日は固定か、イベントごとにカスタマイズ可能にするか                                                        | Open       | 初期は30日固定。将来的にorg管理画面で設定可能に拡張予定                                         |
 | 7   | EventParticipantの role 変更（e.g. MEMBER → ADMIN）は可能か、それとも削除＋再招待か                                     | Open       | 削除＋再招待推奨。権限昇格・降格イベントは明示的・監査可能なフローとして                        |
 | 8   | イベントコードの形式（現在 "SUMMER-PARTY-2026" ）でユーザーが覚えやすいか。より短い形式（e.g. "SPY26"）検討の余地あるか | Open       | ユーザーテスト後に決定。短すぎると衝突リスク高い。30文字制限内で柔軟性確保                      |
 | 9   | ExpireOldInvitations バッチ処理の実行頻度は日1回（00:00 UTC）で十分か                                                   | Open       | 日1回で初期段階は十分。ユーザー数・イベント数増加後、複数回実行への変更検討                     |
 | 10  | Album Service自動作成（EventCreated→Album生成）は ACTIVE化時か作成直後（DRAFT時）か                                     | Open       | ACTIVE化時推奨。ユーザーがイベント確定後にアルバムが有効化されるほうが自然                      |
+
+---
+
+最終更新: 2026-04-19 ポリシー適用

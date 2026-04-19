@@ -366,7 +366,7 @@ func main() {
 
     // アダプタ注入 — Beta/本番で差し替わる唯一の箇所
     queueGateway := buildQueueGateway(cfg, ff)           // BullMQ or OCI Queue
-    storageGateway := buildStorageGateway(cfg)           // MinIO or OCI OSS
+    storageGateway := buildStorageGateway(cfg)           // Garage or OCI Object Storage
     repo := buildAdminRepo(cfg)
 
     // Interactor 構築
@@ -467,7 +467,7 @@ return i.uow.WithTx(ctx, func(tx Tx) error {
 })
 ```
 
-**外部システム（Cognito/Cognito/Core Svc）は分散トランザクション不可**のため、**補償パターン**（Saga）で対処。
+**外部システム（Cognito / Core Svc）は分散トランザクション不可**のため、**補償パターン**（Saga）で対処。
 
 ---
 

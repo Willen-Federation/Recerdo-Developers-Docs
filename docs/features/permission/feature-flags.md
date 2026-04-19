@@ -77,12 +77,12 @@ Feature Flag（機能フラグ）は、Recerdo の全マイクロサービスで
 
 **How（自動）**:
 ```
-CloudWatch: ErrorRate > 5% を検知
-    → CloudWatch Alarm が SNS へ通知
-    → Lambda が起動
+Prometheus Alertmanager: ErrorRate > 5% を検知
+    → Alertmanager Webhook を発火
+    → Admin Console Svc の Kill Switch ワーカーが起動
     → POST /api/flags/{flag_key}/kill-switch { reason: "AUTO_KILLSWITCH" }
     → フラグが自動停止
-    → Slack/管理者プッシュ通知
+    → Slack/管理者プッシュ通知（FCM）
 ```
 
 ### 2.3 UC3: 社内チームのみに機能を公開する（IP制限）
@@ -205,7 +205,7 @@ func (h *AlbumHandler) CreateCollaborativeAlbum(ctx context.Context, req *Reques
 
 ### 8.1 Flipt メトリクス（Prometheus）
 
-Flipt が内蔵するメトリクスを CloudWatch に転送:
+Flipt が内蔵するメトリクスを Prometheus + Loki に転送:
 
 - `flipt_evaluations_requests_total` — フラグ評価リクエスト数
 - `flipt_evaluations_error_total` — 評価エラー数
@@ -214,19 +214,19 @@ Flipt が内蔵するメトリクスを CloudWatch に転送:
 
 ```mermaid
 sequenceDiagram
-    participant CW as CloudWatch
-    participant SNS as SNS Topic
-    participant Lambda as Lambda
-    participant FF as Feature Flag API
+    participant Prom as Prometheus
+    participant AM as Alertmanager
+    participant Admin as Admin Console Svc
+    participant FF as Feature Flag API (Flipt)
     participant NS as Notification Service
 
-    CW->>CW: ErrorRate > 5% を検知
-    CW->>SNS: Alarm triggered
-    SNS->>Lambda: invoke
-    Lambda->>FF: POST /api/flags/{flag_key}/kill-switch
-    FF-->>Lambda: 200 OK
+    Prom->>Prom: ErrorRate > 5% を検知
+    Prom->>AM: Alert triggered
+    AM->>Admin: Webhook (kill-switch job)
+    Admin->>FF: POST /api/flags/{flag_key}/kill-switch
+    FF-->>Admin: 200 OK
     FF->>NS: KillSwitchTriggered イベント
-    NS->>NS: 管理者へ PUSH 通知
+    NS->>NS: 管理者へ FCM PUSH 通知
 ```
 
 ### 8.3 変更管理
@@ -250,3 +250,7 @@ sequenceDiagram
 ```
 
 > **重要**: フラグが不要になった後、コードから評価コードを削除せずにフラグだけを削除するとエラーが発生する。必ずコード側の削除を先に行い、PR レビューで確認すること。
+
+---
+
+最終更新: 2026-04-19 ポリシー適用

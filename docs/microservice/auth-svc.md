@@ -8,7 +8,7 @@
 
 ### 目的
 
-Recuerdoアプリケーションの全ユーザー認証・認可・セッション管理・デバイス登録追跡を一元管理するマイクロサービス。AWS Cognitoのユーザー認証をラッパーし、JWT（RS256）の発行・更新・無効化・JWKS管理を行う。ログイン時にCognitoのユーザー状態をローカルDBに同期し、API Gateway等の下流サービスへJWKSを提供して分散型トークン検証を実現する。トークン無効化・デバイス登録イベントはSQS経由でAPI Gateway・Permission Serviceに通知する。セッション・デバイス・ブロック済みトークンのライフサイクル管理により、ユーザーの認証状態を一貫性を持つ形で制御する。
+Recuerdoアプリケーションの全ユーザー認証・認可・セッション管理・デバイス登録追跡を一元管理するマイクロサービス。AWS Cognitoのユーザー認証をラッパーし、JWT（RS256）の発行・更新・無効化・JWKS管理を行う（本プロジェクトで採用する AWS サービスは Cognito のみ）。ログイン時にCognitoのユーザー状態をローカルDB（MySQL 8.0 / MariaDB 10.11 互換）に同期し、API Gateway等の下流サービスへJWKSを提供して分散型トークン検証を実現する。トークン無効化・デバイス登録イベントは `QueuePort` 経由（Beta: Redis + BullMQ/asynq、本番: OCI Queue Service）で API Gateway・Permission Service に通知する。セッション・デバイス・ブロック済みトークンのライフサイクル管理により、ユーザーの認証状態を一貫性を持つ形で制御する。
 
 ### ビジネスコンテキスト
 
@@ -223,7 +223,7 @@ iOSアプリ・WebアプリからのPOST /api/auth/login リクエスト
    b. refresh_expires_at = now + 30days
    c. session_id は新規UUID生成
 8. デバイスフィンガープリント (SHA256(device_type + os_version + app_version)) をDeviceに保存
-9. SQS EventPublisher.Publish(UserLoggedIn イベント) → API Gateway・Messaging Service に通知
+9. QueuePort.Publish(UserLoggedIn イベント) → API Gateway・Messaging Service に通知
 10. レスポンス:
     ```json
     {
@@ -264,7 +264,7 @@ POST /api/auth/refresh リクエスト (Authorization: Bearer refresh_token)
 8. 古いJTIを BlockedTokenRepository に追加 (TokenRevoked イベント)
 9. SessionRepository.Update(session_id, access_token_jti=new_jti)
 10. RefreshTokenGrant監査ログを記録
-11. SQS EventPublisher.Publish(TokenRefreshed イベント)
+11. QueuePort.Publish(TokenRefreshed イベント)
 12. レスポンス: 新AccessTokenのみ返す
 
 ### 注意事項
@@ -372,19 +372,19 @@ type RateLimitPort interface {
 | JWKSHTTPHandler | GET /.well-known/jwks.json                 | GetJWKSUseCase              |
 | HealthHandler   | GET /health                                | ヘルスチェック              |
 | MetricsHandler  | GET /metrics                               | Prometheusメトリクス        |
-| SQSConsumer     | Queue: user.suspended                      | RevokeUserTokensUseCase     |
-| SQSConsumer     | Queue: device.revocation_requested         | RevokeDeviceSessionsUseCase |
+| QueueConsumer   | Topic: `recuerdo.user.suspended`           | RevokeUserTokensUseCase     |
+| QueueConsumer   | Topic: `recuerdo.device.revocation_requested` | RevokeDeviceSessionsUseCase |
 
 ### リポジトリ実装
 
 | ポートインターフェース      | 実装クラス                       | データストア                               |
 | --------------------------- | -------------------------------- | ------------------------------------------ |
-| UserRepository              | MySQLUserRepository              | MySQL (users テーブル)                     |
-| SessionRepository           | MySQLSessionRepository           | MySQL (sessions テーブル)                  |
-| DeviceRepository            | MySQLDeviceRepository            | MySQL (devices テーブル)                   |
-| BlockedTokenRepository      | RedisBlockedTokenRepository      | Redis 7.x (blocked_tokens:{jti} → TTL付き) |
-| RefreshTokenGrantRepository | MySQLRefreshTokenGrantRepository | MySQL (refresh_token_grants テーブル)      |
-| JWKSRepository              | RedisJWKSRepository              | Redis 7.x (auth:jwks → TTL 5分)            |
+| UserRepository              | MySQLUserRepository              | MySQL 8.0 / MariaDB 10.11 (users テーブル)     |
+| SessionRepository           | MySQLSessionRepository           | MySQL 8.0 / MariaDB 10.11 (sessions テーブル)  |
+| DeviceRepository            | MySQLDeviceRepository            | MySQL 8.0 / MariaDB 10.11 (devices テーブル)   |
+| BlockedTokenRepository      | RedisBlockedTokenRepository      | Redis 7.x (blocked_tokens:{jti} → TTL付き)     |
+| RefreshTokenGrantRepository | MySQLRefreshTokenGrantRepository | MySQL 8.0 / MariaDB 10.11 (refresh_token_grants テーブル) |
+| JWKSRepository              | RedisJWKSRepository              | Redis 7.x (auth:jwks → TTL 5分)                |
 
 ### 外部サービスアダプタ
 
@@ -393,7 +393,8 @@ type RateLimitPort interface {
 | CognitoAuthPort        | AWSCognitoAdapter            | AWS Cognito (InitiateAuth, GetUser)                     |
 | JWTSignerPort          | RSA256JWTSigner              | ローカルRSA秘密鍵（Cognito公開鍵で検証）                |
 | PermissionPort         | PermissionServiceGRPCAdapter | recuerdo-permission-svc (gRPC)                          |
-| EventPublisherPort     | SQSEventPublisher            | AWS SQS (recuerdo-auth-events, recuerdo-gateway-events) |
+| EventPublisherPort     | QueueEventPublisher          | QueuePort（Beta: Redis+BullMQ/asynq、本番: OCI Queue Service）Topic: `recuerdo.auth.*`, `recuerdo.gateway.*` |
+| QueuePort              | **Beta:** `RedisBullMQAdapter` / `AsynqAdapter` / **本番:** `OCIQueueAdapter` | Redis 7.x + BullMQ/asynq / OCI Queue Service |
 | RateLimitPort          | RedisRateLimitAdapter        | Redis 7.x (rate_limit:login:{phone}:{minute} 等)        |
 
 ## 5. インフラストラクチャ層
@@ -404,21 +405,21 @@ Go 1.22 + net/http (HTTPサーバー) + chi (ルーティング) + middleware (C
 
 ### データベース
 
-MySQL 15.x (users, sessions, devices, refresh_token_grants テーブル。トランザクション・監査ログ)
-Redis 7.x (blocked_tokens, jwks キャッシュ、レート制限 sliding window)
+MySQL 8.0 / MariaDB 10.11（互換性テストは CI で必須）(users, sessions, devices, refresh_token_grants テーブル。トランザクション・監査ログ)。Beta は XServer VPS 上に自己運用、本番は OCI MySQL HeatWave。
+Redis 7.x (blocked_tokens, jwks キャッシュ、レート制限 sliding window)。Beta は XServer VPS 共用、本番は OCI Cache with Redis。
 
 ### 主要ライブラリ・SDK
 
 | ライブラリ                        | 目的                                               | レイヤー       |
 | --------------------------------- | -------------------------------------------------- | -------------- |
 | golang-jwt/jwt/v5                 | JWT署名・検証                                      | Adapter        |
-| aws-sdk-go-v2/service/cognito-idp | Cognito InitiateAuth・GetUser                      | Infrastructure |
+| aws-sdk-go-v2/service/cognito-idp | Cognito InitiateAuth・GetUser（Cognito のみ AWS を利用） | Infrastructure |
 | lestrrat-go/jwx/v2                | JWKS取得・解析                                     | Infrastructure |
 | go-redis/v9                       | BlockedTokens・JWKS・レート制限管理                | Infrastructure |
-| lib/pq                            | MySQL ドライバ                                     | Infrastructure |
-| go-sql-driver/migrations          | DB マイグレーション                                | Infrastructure |
+| go-sql-driver/mysql               | MySQL 8.0 / MariaDB 10.11 ドライバ                 | Infrastructure |
+| pressly/goose または golang-migrate/migrate | DB マイグレーション                      | Infrastructure |
 | google.golang.org/grpc            | Permission Service gRPCクライアント                | Infrastructure |
-| aws-sdk-go-v2/service/sqs         | SQS イベント発行                                   | Infrastructure |
+| hibiken/asynq（Beta Go）または BullMQ（Beta Node）/ OCI Queue SDK（本番） | QueuePort 実装（BlockedTokens・セッション無効化通知） | Infrastructure |
 | uber-go/fx                        | 依存性注入                                         | Infrastructure |
 | uber-go/zap                       | 構造化ログ                                         | Infrastructure |
 | go.opentelemetry.io/otel          | 分散トレーシング                                   | Infrastructure |
@@ -433,8 +434,8 @@ uber-go/fx を使用。MySQL・Redis接続プール、gRPC接続を共有。
 fx.Provide(
     NewMySQLConnection,           // MySQL pool
     NewRedisClient,                  // Redis connection
-    NewCognitoClient,                // AWS SDK Cognito
-    NewSQSClient,                    // AWS SDK SQS
+    NewCognitoClient,                // AWS SDK Cognito（Cognito のみ AWS 利用）
+    NewQueueClient,                  // QueuePort クライアント（Feature Flag で Beta: Redis+BullMQ/asynq, 本番: OCI Queue）
     NewGRPCPermissionClient,         // gRPC Permission Service
     
     // Repositories
@@ -449,7 +450,7 @@ fx.Provide(
     NewAWSCognitoAdapter,            // → CognitoAuthPort
     NewRSA256JWTSigner,              // → JWTSignerPort
     NewPermissionServiceGRPCAdapter, // → PermissionPort
-    NewSQSEventPublisher,            // → EventPublisherPort
+    NewQueueEventPublisher,          // → EventPublisherPort（QueuePort 委譲）
     NewRedisRateLimitAdapter,        // → RateLimitPort
     
     // Use Cases
@@ -844,9 +845,14 @@ CREATE TABLE refresh_token_grants (
 | --- | ------------------------------------------------------------------------------------------------------------ | ---------- | ------------------------------------------------------------------------------------------------------------------------------ |
 | 1   | AccessToken有効期限は1時間固定か、ユーザー/デバイス単位で調整可能にするか                                    | Open       | 初期は1時間固定。将来的にセキュリティポリシーで設定可能にする方針で検討中                                                      |
 | 2   | RefreshToken 30日の有効期限中に新デバイスからRefreshされた場合の扱い。新セッション扱いか継続扱いか           | Open       | 新セッション扱い。device_idが異なれば新登録とする。Fraud detectionは権限チェックでカバー                                       |
-| 3   | ユーザーがサスペンドされた際、既存トークンの無効化はSQS経由か直接DBか。遅延許容度は                          | Open       | SQS経由（非同期）で即座にBlockedTokensに追加。API Gateway・Messaging Serviceに通知は1～5秒後                                   |
+| 3   | ユーザーがサスペンドされた際、既存トークンの無効化は QueuePort 経由か直接DBか                               | Resolved   | QueuePort 経由（Beta: Redis+BullMQ、本番: OCI Queue）で即座に BlockedTokens に追加。API Gateway・Permission Service への通知は 1～5 秒以内 |
 | 4   | Device Fingerprintの計算方法が確定しているか。Device Idempotencyをどう保証するか                             | Open       | 初期案：SHA256(device_type + os_version + app_version)。客户端で再計算可能なので改ざん困難。ただし偽装検知後の対応フロー要検討 |
 | 5   | Cognitoへの認証時に MFA （多要素認証） 対応が必要か。将来の拡張性確保すべきか                                | Open       | 初期は電話番号+パスワードのみ。MFA対応はロードマップに記載し、future-proofな設計を維持                                         |
 | 6   | MySQLがダウンした場合の Read-Only レプリカへのフェイルオーバーフロー                                         | Open       | 未決定。接続プーリング・リトライロジック・監視アラート設定後に確定                                                             |
 | 7   | RedisがダウンしたときBlockedTokensチェックの Fail-Open vs Fail-Closed                                        | Open       | 初期は Fail-Closed (全ユーザーログイン拒否)。セキュリティとユーザー体験のバランス後に再評価予定                                |
-| 8   | ログアウト時に該当セッションのIPアドレス・User-Agent をクライアントに返すべきか（Suspicious activity警告用） | Open       | 未決定。セッション一覧API で返す仕様で検討中。プライバシー考慮要                                                               |
+| 8   | ログアウト時に該当セッションのIPアドレス・User-Agent をクライアントに返すべきか（Suspicious activity警告用） | Resolved   | 返す。ただしセッション一覧 API (`GET /api/auth/sessions`) に限定し、現在リクエスト中のセッションのみ IP と User-Agent を詳細化。アクセスログ自体は Audit Service に蓄積し、クライアントには最小情報のみ |
+
+---
+
+最終更新: 2026-04-19 ポリシー適用
+
