@@ -570,7 +570,7 @@ func NewPostfixSMTPAdapter(cfg SMTPConfig) *PostfixSMTPAdapter {
 }
 
 func (a *PostfixSMTPAdapter) SendEmail(ctx context.Context, notif *domain.Notification, toAddress string) error {
-	auth := smtp.PlainAuth("", a.username, a.password, a.host)
+	_ = ctx // net/smtp は context 非対応
 	addr := fmt.Sprintf("%s:%d", a.host, a.port)
 	msg := []byte(
 		"From: " + a.from + "\r\n" +
@@ -579,9 +579,44 @@ func (a *PostfixSMTPAdapter) SendEmail(ctx context.Context, notif *domain.Notifi
 		"Content-Type: text/plain; charset=UTF-8\r\n\r\n" +
 		notif.Body + "\r\n",
 	)
-	// STARTTLS は smtp.SendMail 内部で auth → TLS 昇格を行う
-	_ = tls.Config{ServerName: a.host}
-	return smtp.SendMail(addr, auth, a.from, []string{toAddress}, msg)
+	c, err := smtp.Dial(addr)
+	if err != nil {
+		return err
+	}
+	defer c.Close()
+
+	if ok, _ := c.Extension("STARTTLS"); !ok {
+		return fmt.Errorf("smtp server %s does not advertise STARTTLS", addr)
+	}
+	if err := c.StartTLS(&tls.Config{
+		ServerName: a.host,
+		MinVersion: tls.VersionTLS12,
+	}); err != nil {
+		return err
+	}
+
+	auth := smtp.PlainAuth("", a.username, a.password, a.host)
+	if err := c.Auth(auth); err != nil {
+		return err
+	}
+	if err := c.Mail(a.from); err != nil {
+		return err
+	}
+	if err := c.Rcpt(toAddress); err != nil {
+		return err
+	}
+	w, err := c.Data()
+	if err != nil {
+		return err
+	}
+	if _, err := w.Write(msg); err != nil {
+		_ = w.Close()
+		return err
+	}
+	if err := w.Close(); err != nil {
+		return err
+	}
+	return c.Quit()
 }
 ```
 
