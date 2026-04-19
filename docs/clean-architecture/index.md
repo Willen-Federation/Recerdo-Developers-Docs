@@ -111,3 +111,18 @@ AWS の利用は **Cognito のみ**（SES/SQS/SNS/S3/DynamoDB/RDS/EC2/EKS/Elasti
 メディアは全環境共通で、**動画は自動 HLS（360p / 720p / 1080p、6 秒セグメント）**、
 **HEIC は libheif で JPEG/WebP に変換**、**Live Photo は `asset_identifier` でペアリング**。
 ハイライトビデオは**ユーザー指定の素材のみ**を結合し、**自動生成や ML による推薦は行わない**。
+
+## 追加設計プラン反映（設計・分析・考察の反復）
+
+| 設計観点 | 参照モデル | Recuerdo クリーンアーキテクチャでの反映 |
+| --- | --- | --- |
+| 通知チャネル戦略 | 大規模 SNS の Push-first モデル | Notification UseCase で Push-first / Email-conditional を明文化 |
+| 障害復旧戦略 | 大規模イベント基盤の DLQ 運用 | QueuePort + Retry + DLQ を全サービス共通の Port 契約として再確認 |
+| セキュリティレビュー | SMTP/TLS 運用ベストプラクティス | MailPort 実装例を STARTTLS 必須・非対応時失敗に統一 |
+| 変更容易性 | 契約固定・実装差し替えモデル | Port 契約を固定し、Beta/Prod の差分を Adapter に限定 |
+
+### 課題・他者レビューを踏まえた更新方針
+
+- ドキュメント内のコード例は「動く例」より「安全要件を満たす例」を優先する。
+- レビューで発見された横断課題は、単一ページ修正で終わらせず index と policy に再反映する。
+- Clean Architecture の責務境界（UseCase/Port/Adapter）と運用要件（監査・再試行）を同時に記述する。

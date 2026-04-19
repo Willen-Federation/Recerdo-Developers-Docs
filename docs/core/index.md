@@ -18,3 +18,9 @@ Recerdo のインフラストラクチャ、運用計画、セキュリティに
 | [PoC/Beta スコープ定義](poc-beta-scope.md) | バイブコーディングで実現する MVP 機能セット。HLS/HEIC/Live Photos 変換 + 手動選択ハイライトを含む |
 | [サーバーキャパシティ計画](server-capacity-planning.md) | XServer VPS 6 core/10 GB 上のリソース配分。ffmpeg HLS 変換の CPU 負荷と第二 VPS オフロード戦略 |
 | [ファイアウォール & データプロテクション](firewall-data-protection.md) | Cloudflare + ufw + Traefik + Cognito + MySQL(MariaDB互換)暗号化。バックアップは Garage / OCI Object Storage |
+
+## 設計反復（追加プラン）ガイド
+
+- 基本方針の追加設計プランは [基本的方針 (Policy)](policy.md) の「8. 追加設計プラン（大規模類似サービス参照）」を正典とする。
+- 各サービス文書の課題・レビュー記録は、マイクロサービス設計とクリーンアーキテクチャ設計の両インデックスへ再反映する。
+- 重要指摘（セキュリティ・可用性・可観測性）は「個別修正 → 横断方針更新」の順で必ず反復する。

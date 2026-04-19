@@ -60,7 +60,20 @@ admin-*    → feature-flag-svc     (Flag 変更・Kill Switch)
 
 すべての差分は **Feature Flag + 環境変数** で切替可能（[環境抽象化](../core/environment-abstraction.md) 参照）。AWS サービスは **Cognito のみ** 利用し、SQS / SES / S3 / DynamoDB / RDS / MinIO / EC2 / EKS / ElastiCache / Lambda / CloudFront は採用しない（[基本的方針（ポリシー）](../core/policy.md) 参照）。
 
+## 追加設計プラン反映（大規模類似サービスモデル準拠）
+
+| 反映テーマ | 変更対象 | 更新内容 |
+| --- | --- | --- |
+| 通知設計の再定義 | notifications-svc | Push-first、Email 条件付き、STARTTLS 必須の運用前提を明確化 |
+| 非同期処理の共通化 | 全サービス | QueuePort + 冪等 + DLQ 監査の統一運用モデルを採用 |
+| レビュー駆動改善 | 設計書全体 | 重要指摘を `core/policy.md` に集約し、各サービスへ再配布 |
+
+### 課題・レビュー観点（横断）
+
+- サービスごとの失敗時動作（再試行/打ち切り/通知抑制）を同じ粒度で記述する。
+- 実装サンプルがセキュリティ要件（TLS 必須など）を満たすことをレビュー観点に固定する。
+- ポート/アダプタ切替時に API 契約やイベント契約を変えないことを運用チェックに含める。
+
 ---
 
 最終更新: 2026-04-19 ポリシー適用
-
