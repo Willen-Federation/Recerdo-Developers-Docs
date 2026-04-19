@@ -79,7 +79,7 @@ while IFS= read -r line || [ -n "$line" ]; do
     if [ "$pr_page_count" -eq 0 ]; then
       break
     fi
-    prs_json=$(jq -s '.[0] + .[1]' <(echo "$prs_json") <(echo "$pr_page_json"))
+    prs_json=$(jq -cn --argjson current "$prs_json" --argjson page "$pr_page_json" '$current + $page')
     pr_oldest_updated=$(echo "$pr_page_json" | jq -r '.[-1].updated_at // empty' 2>/dev/null || true)
     if [ -n "$pr_oldest_updated" ] && [[ "$pr_oldest_updated" < "$SINCE_UTC" ]]; then
       break
