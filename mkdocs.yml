@@ -175,5 +175,8 @@ nav:
     - Architecture Decision Records:
       - core/adr/README.md
       - ADR-0001 命名規約: core/adr/0001-naming-convention.md
+      - ADR-0002 リポレイアウト (per-service): core/adr/0002-repo-layout-per-service.md
+      - ADR-0003 admin-console 配置: core/adr/0003-admin-console-placement.md
+      - ADR-0004 audit 配置: core/adr/0004-audit-service-placement.md
 
   - 変更履歴: changelog.md
