@@ -182,7 +182,7 @@ flowchart TB
 | サービスごとの状態可視化                                       | Tilt UI（`tilt up` で `http://localhost:10350` にダッシュボード） |
 | 個別サービスだけ rebuild する                                  | Tilt UI から `Rebuild` ボタン、CLI `tilt trigger`                |
 | Compose / Kubernetes の **二重運用**                            | `docker_compose()` と `k8s_yaml()` を同じ `Tiltfile` で両立      |
-| CI / 手動開発の **統一**                                       | `tilt ci` で非対話モード、PR ごとのスモークテストが可能          |
+| CI / 手動開発の **統一**                                       | `tilt ci` で非対話モード、PR ごとのスモークテストを将来導入可能  |
 
 ### 4.2 Tiltfile 構成方針
 
@@ -277,7 +277,7 @@ for name, port, path, deps in services:
 
 ```bash
 # macOS (Homebrew)
-brew install colima docker docker-compose docker-buildx tilt-dev/tap/tilt
+brew install colima docker docker-compose docker-buildx tilt-dev/tap/tilt sops age
 
 # Linux は distro のパッケージマネージャで colima を導入
 
@@ -337,7 +337,7 @@ docker context use orbstack
 
 ## 6. 環境変数と Feature Flag
 
-[環境抽象化](environment-abstraction.md) の `.env.local` パターンをそのまま使う。ローカル固有値は `deploy/dev/.env.local.example` にテンプレート化する。
+[環境抽象化](environment-abstraction.md) の `.env.local` パターンをそのまま使う。ローカル固有値は（アプリ本体リポジトリ側の）`deploy/dev/.env.local.example` にテンプレート化する。
 
 ### 6.1 ローカル規定値
 
@@ -483,7 +483,7 @@ open http://localhost:3001    # Grafana
 
 本番は OCI Container Instances を起点に、スケール要件に応じて OKE（Kubernetes）へ移行する方針（[policy.md](policy.md) §1.2）。`Tiltfile` は最初から **k8s_yaml 経路を実装** しておき、開発者が任意でローカル k3s に切り替えられるようにする。
 
-### 9.1 マニフェスト配置
+### 9.1 マニフェスト配置（アプリ本体リポジトリ例）
 
 ```
 deploy/
@@ -531,10 +531,9 @@ k3s で動くことを CI で週次チェックすれば、**OKE 移行時に Ma
 
 ## 11. 運用 / リリースサイクルへの組み込み（目標）
 
-現状のアプリケーション本体 CI は `mkdocs build --strict` のみで、Tilt / Colima を実行するワークフローはまだ無い。**将来の運用目標** として以下を設計する（対応するワークフロー追加を伴うため、本ドキュメントだけでは有効化されない）:
-
-- **PR ごと**: `tilt ci` を GitHub Actions で実行し、`TILT_PROFILE=core` のスモークを 5 分以内に完了させる（要: アプリリポ側でワークフロー追加）。
-- **夜間 (nightly)**: Colima 上の k3s で `TILT_TARGET=k3s` を起動し、[environment-abstraction.md](environment-abstraction.md) §6.1 の統合テストマトリクスを回す。
+- **現状（この docs リポジトリ）**: GitHub Actions は `mkdocs build --strict` のみを実行。Tilt / Colima を回すワークフローは存在しない。
+- **将来案（アプリ本体リポジトリ）**: PR ごとに `tilt ci` を実行し、`TILT_PROFILE=core` のスモークを 5 分以内に完了させる（要: アプリリポ側でワークフロー追加）。
+- **将来案（nightly）**: Colima 上の k3s で `TILT_TARGET=k3s` を起動し、[environment-abstraction.md](environment-abstraction.md) §6.1 の統合テストマトリクスを回す。
 - **リリース直前**: [deployment-strategy.md](deployment-strategy.md) §5 の Beta → 本番マッピングどおりに環境変数を OCI 向けに差し替え、同じ `Tiltfile` で本番 staging（OKE）の手前まで同一定義で動くことを確認する。
 
 !!! note "CI 連携は別 PR で段階導入"
