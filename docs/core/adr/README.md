@@ -12,3 +12,6 @@ Recerdo プロジェクトにおける意思決定の記録。
 | # | タイトル | ステータス | 決定日 |
 |---|---|---|---|
 | [0001](0001-naming-convention.md) | リポジトリ命名規約 (`recerdo-<name>`) | Accepted | 2026-04-20 |
+| [0002](0002-repo-layout-per-service.md) | リポジトリレイアウト — per-service 採用 | Accepted | 2026-04-20 |
+| [0003](0003-admin-console-placement.md) | admin-console-svc 実装リポの確定 | Accepted | 2026-04-20 |
+| [0004](0004-audit-service-placement.md) | audit-svc を単独リポで管理 | Accepted | 2026-04-20 |
