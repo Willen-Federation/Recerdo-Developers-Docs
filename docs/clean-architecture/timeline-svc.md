@@ -22,7 +22,7 @@ Timeline Service はRecuerdo プラットフォームにおいて、すべての
 - イベント駆動アーキテクチャのコンシューマ：他すべてのサービスから通知を受け取る
 
 ### 1.3 アーキテクチャ原則
-- **イベント駆動型**：SQS メッセージをリスニング、TimelineItem を非同期作成
+- **イベント駆動型**：QueuePort メッセージをリスニング、TimelineItem を非同期作成
 - **アクセス制御**：可視性ルール（PRIVATE/FRIENDS/PUBLIC）をドメイン層で保護
 - **スケーラビリティ**：月次パーティショニング（MySQL）+ Redis ソートセット FIFOキャッシュ
 - **イミュータビリティ**：TimelineItem は削除されない、表示/非表示フラグで制御
@@ -36,13 +36,14 @@ Timeline Service はRecuerdo プラットフォームにおいて、すべての
 ```
 ┌─────────────────────────────────────────────────────┐
 │  フレームワーク＆ドライバ層                          │
-│  (Web: Gin, DB: MySQL, Queue: SQS consumer)  │
+│  (Web: Gin, DB: MySQL (MariaDB互換),         │
+│   Queue: QueuePort consumer - Beta: Redis+BullMQ / Prod: OCI Queue) │
 └────────────┬──────────────────────────────────────┘
              │
 ┌────────────▼──────────────────────────────────────┐
 │  インターフェースアダプタ層                        │
 │  (HTTP Handler, Repository Impl,                  │
-│   SQS Message Consumer, Presenter)                │
+│   QueueMessageConsumer, Presenter)                │
 └────────────┬──────────────────────────────────────┘
              │
 ┌────────────▼──────────────────────────────────────┐
@@ -60,7 +61,7 @@ Timeline Service はRecuerdo プラットフォームにおいて、すべての
 
 ### 2.2 依存性ルール
 - **内向き依存のみ**：Adapter → UseCase → Domain
-- **SQS メッセージはホストサービス扱い**：外側（インフラ）から内側（ドメイン）への入力
+- **QueuePort メッセージはホストサービス扱い**：外側（インフラ）から内側（ドメイン）への入力
 - **可視性チェック**：Permission Service 呼び出しはアダプタ層の責務
 
 ---
@@ -81,7 +82,7 @@ Timeline Service はRecuerdo プラットフォームにおいて、すべての
 | **TimelineItemType** | EVENT_CREATED, ALBUM_CREATED, MEDIA_ADDED, FRIEND_JOINED, EVENT_INVITATION_ACCEPTED, HIGHLIGHT_VIDEO_READY, MEMORY_SHARED | イミュータブル（列挙値）           |
 | **Visibility**       | PUBLIC, FRIENDS, PRIVATE                                                                                                  | イミュータブル、ドメインルール適用 |
 | **FeedCursor**       | (last_seen_id: string, occurred_at: timestamp)                                                                            | イミュータブル                     |
-| **TimelinePayload**  | item_type に応じて異なる JSON 構造                                                                                        | イミュータブル（JSONB）            |
+| **TimelinePayload**  | item_type に応じて異なる JSON 構造                                                                                        | イミュータブル（MySQL/MariaDB `JSON` 型） |
 
 ### 3.3 ドメインルール / 不変条件
 
@@ -132,7 +133,7 @@ const (
     VisibilityPublic   Visibility = "PUBLIC"    // すべてのメンバー
 )
 
-// TimelinePayload item_type に応じた可変構造（JSONB）
+// TimelinePayload item_type に応じた可変構造（MySQL/MariaDB JSON 型にシリアライズ）
 type TimelinePayload struct {
     data map[string]interface{}
 }
@@ -328,7 +329,7 @@ func AlbumCreatedPayload(albumID, albumName, eventID string) map[string]interfac
 
 | ユースケース           | 説明                                                 | アクター                | 主成功シナリオ                                           |
 | ---------------------- | ---------------------------------------------------- | ----------------------- | -------------------------------------------------------- |
-| **CreateTimelineItem** | SQS メッセージから TimelineItem 作成（非同期）       | SQS Consumer            | メッセージパース、ドメイン構築、DB 保存、キャッシュ更新  |
+| **CreateTimelineItem** | QueuePort メッセージから TimelineItem 作成（非同期）       | Queue Consumer            | メッセージパース、ドメイン構築、DB 保存、キャッシュ更新  |
 | **GetUserTimeline**    | ユーザーの個人フィード取得                           | Org Member              | カーソルベースページング、可視性フィルタ、キャッシュ活用 |
 | **GetOrgTimeline**     | 組織フィード取得                                     | Org Member              | PUBLIC/FRIENDS のみ、個人 PRIVATE 除外、ページング       |
 | **HideTimelineItem**   | アイテムを非表示（soft delete）                      | Item Owner or Org Admin | Hidden=true 設定、キャッシュ無効化                       |
@@ -336,14 +337,14 @@ func AlbumCreatedPayload(albumID, albumName, eventID string) map[string]interfac
 
 ### 4.2 ユースケース詳細 (CreateTimelineItem - main use case)
 
-**Actor**: SQS Consumer (非同期ワーカー)
+**Actor**: Queue Consumer (非同期ワーカー)
 
 **Pre-conditions**:
-- SQS キューに JSON メッセージあり
+- QueuePort キューに JSON メッセージあり
 - メッセージスキーマ有効
 
 **Main Flow**:
-1. SQS メッセージ受信（例：EventCreatedEvent）
+1. QueuePort メッセージ受信（例：EventCreatedEvent）
 2. JSON をドメインイベント型にパース
 3. TimelineItemType を決定（EventCreated → EVENT_CREATED）
 4. TimelinePayload を構築（バリデーション含む）
@@ -368,7 +369,7 @@ func AlbumCreatedPayload(albumID, albumName, eventID string) map[string]interfac
 ```go
 package application
 
-// CreateTimelineItemRequest SQS メッセージペイロード
+// CreateTimelineItemRequest QueuePort メッセージペイロード
 type CreateTimelineItemRequest struct {
     EventType   string                 `json:"event_type"` // EventCreated, AlbumCreated など
     UserID      *string                `json:"user_id,omitempty"`
@@ -501,9 +502,9 @@ type NotificationService interface {
     NotifyFeedUpdate(ctx context.Context, userID, itemID string) error
 }
 
-// SQSMessageConsumer SQS コンシューマのポート
-type SQSMessageConsumer interface {
-    // Listen SQS メッセージリスニング開始
+// QueueMessageConsumer キューコンシューマのポート (Beta: Redis+BullMQ/asynq / Prod: OCI Queue)
+type QueueMessageConsumer interface {
+    // Listen QueuePort メッセージリスニング開始
     Listen(ctx context.Context, handler func(ctx context.Context, message interface{}) error) error
 }
 ```
@@ -520,7 +521,7 @@ type SQSMessageConsumer interface {
 | **GetOrgTimelineHandler**     | GET          | /api/timelines/orgs/{id}  | Query params | GetUserTimelineResponse    | 組織フィルタ、PRIVATE 除外                 |
 | **HideTimelineItemHandler**   | DELETE       | /api/timeline-items/{id}  | -            | StatusResponse             | 権限チェック、Hidden 設定                  |
 | **GetUserFeedHandler**        | GET          | /api/feeds/users/{id}     | Query params | GetUserFeedResponse        | 友人グラフ結合、統合ソート                 |
-| **SQSMessageConsumerHandler** | (background) | (async)                   | SQS message  | CreateTimelineItemResponse | メッセージパース、ドメイン構築             |
+| **QueueMessageConsumerHandler** | (background) | (async)                   | Queue message  | CreateTimelineItemResponse | メッセージパース、ドメイン構築             |
 
 ### 5.2 プレゼンター / レスポンスマッパー
 
@@ -581,7 +582,8 @@ func (p *TimelinePresenter) PresentUserTimelineResponse(
 | アダプタ                      | 外部サービス       | 実装                               | エラーハンドリング               |
 | ----------------------------- | ------------------ | ---------------------------------- | -------------------------------- |
 | **PermissionServiceClient**   | Permission Service | gRPC                               | タイムアウト 2sec、default false |
-| **SQSMessageConsumerAdapter** | SQS                | `github.com/aws/aws-sdk-go-v2/sqs` | リトライ 3回、DLQ へ送信         |
+| **RedisBullMQConsumerAdapter** | Redis+BullMQ/asynq (Beta) | `github.com/hibiken/asynq` | リトライ 3回、DLQ へ送信 |
+| **OCIQueueConsumerAdapter**   | OCI Queue (Prod)          | `github.com/oracle/oci-go-sdk/v65/queue` | リトライ 3回、DLQ へ送信 |
 
 ### 5.5 マッパー
 
@@ -636,8 +638,8 @@ func (m *TimelineItemMapper) ToPersistence(item *domain.TimelineItem) *TimelineI
     }
 }
 
-// SQSMessageMapper SQS JSON → CreateTimelineItemRequest
-func SQSMessageToRequest(message []byte) (*CreateTimelineItemRequest, error) {
+// QueueMessageMapper QueuePort JSON → CreateTimelineItemRequest
+func QueueMessageToRequest(message []byte) (*CreateTimelineItemRequest, error) {
     var req CreateTimelineItemRequest
     err := json.Unmarshal(message, &req)
     return &req, err
@@ -654,43 +656,48 @@ func SQSMessageToRequest(message []byte) (*CreateTimelineItemRequest, error) {
 - **ベースパス**: `/api`
 - **ミドルウェア**: CORS, Auth Token 検証, Request ID, ロギング, Panic Recovery
 
-### 6.2 データベース (MySQL 15 with monthly partitioning)
+### 6.2 データベース (MySQL 8.0 / MariaDB 10.11、月次 RANGE パーティション)
+
+MySQL 8.0 / MariaDB 10.11 互換スキーマ（PostgreSQL 固有の `JSONB` / `TIMESTAMPTZ` / `BIGSERIAL` / `PARTITION OF` / `gen_random_uuid()` は未使用。`JSON` 型・`DATETIME(6)`・`BIGINT AUTO_INCREMENT`・`PARTITION BY RANGE` を利用）。
 
 ```sql
 -- timeline_items テーブル（base）
+-- MariaDB RANGE パーティショニング: YEAR*100 + MONTH を式として使用
 CREATE TABLE IF NOT EXISTS timeline_items (
-    id TEXT PRIMARY KEY,
-    user_id TEXT,
-    org_id TEXT,
-    event_id TEXT,
-    item_type VARCHAR(50) NOT NULL CHECK (item_type IN (
+    id CHAR(26) NOT NULL,                      -- ULID
+    user_id CHAR(36),
+    org_id CHAR(36),
+    event_id CHAR(36),
+    item_type VARCHAR(50) NOT NULL,
+    payload JSON NOT NULL,
+    occurred_at DATETIME(6) NOT NULL,
+    visibility VARCHAR(20) NOT NULL DEFAULT 'PUBLIC',
+    hidden BOOLEAN NOT NULL DEFAULT FALSE,
+    hidden_by CHAR(36),
+    hidden_at DATETIME(6) NULL,
+    created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+    PRIMARY KEY (id, created_at),              -- パーティションキーを PK に含める
+    CONSTRAINT chk_item_type CHECK (item_type IN (
         'EVENT_CREATED', 'ALBUM_CREATED', 'MEDIA_ADDED',
         'FRIEND_JOINED', 'EVENT_INVITATION_ACCEPTED',
         'HIGHLIGHT_VIDEO_READY', 'MEMORY_SHARED'
     )),
-    payload JSONB NOT NULL,
-    occurred_at TIMESTAMP WITH TIME ZONE NOT NULL,
-    visibility VARCHAR(20) NOT NULL DEFAULT 'PUBLIC' CHECK (visibility IN ('PRIVATE', 'FRIENDS', 'PUBLIC')),
-    hidden BOOLEAN NOT NULL DEFAULT FALSE,
-    hidden_by TEXT,
-    hidden_at TIMESTAMP WITH TIME ZONE,
-    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT timeline_items_user_or_org CHECK (
+    CONSTRAINT chk_visibility CHECK (visibility IN ('PRIVATE', 'FRIENDS', 'PUBLIC')),
+    CONSTRAINT chk_user_or_org CHECK (
         (user_id IS NOT NULL AND org_id IS NULL) OR
         (user_id IS NULL AND org_id IS NOT NULL)
-    ),
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-    FOREIGN KEY (org_id) REFERENCES organizations(id) ON DELETE CASCADE,
-    FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE SET NULL,
-    FOREIGN KEY (hidden_by) REFERENCES users(id) ON DELETE SET NULL
-) PARTITION BY RANGE (YEAR(created_at), MONTH(created_at));
+    )
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+PARTITION BY RANGE (YEAR(created_at) * 100 + MONTH(created_at)) (
+    PARTITION p202604 VALUES LESS THAN (202605),
+    PARTITION p202605 VALUES LESS THAN (202606),
+    PARTITION p202606 VALUES LESS THAN (202607),
+    PARTITION pmax    VALUES LESS THAN (MAXVALUE)
+);
 
--- 月別パーティション（例：2026-04）
-CREATE TABLE timeline_items_2026_04 PARTITION OF timeline_items
-    FOR VALUES FROM (2026, 4) TO (2026, 5);
-
-CREATE TABLE timeline_items_2026_05 PARTITION OF timeline_items
-    FOR VALUES FROM (2026, 5) TO (2026, 6);
+-- 外部キーは別テーブル（users / organizations / events）に対して
+-- MariaDB のパーティションテーブルには制約があるため、アプリ層で整合性を担保する
+-- (users/orgs/events 側から ON DELETE CASCADE 相当の論理削除を QueuePort イベントで実施)
 
 -- インデックス
 CREATE INDEX idx_timeline_items_user_id ON timeline_items(user_id, hidden, occurred_at DESC);
@@ -701,21 +708,21 @@ CREATE INDEX idx_timeline_items_visibility ON timeline_items(visibility);
 
 -- timeline_item_read_status テーブル（最後に見た位置）
 CREATE TABLE IF NOT EXISTS timeline_item_read_status (
-    id BIGSERIAL PRIMARY KEY,
-    user_id TEXT NOT NULL,
-    last_read_item_id TEXT,
-    last_read_at TIMESTAMP WITH TIME ZONE,
-    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT timeline_item_read_status_user_unique UNIQUE (user_id),
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-    FOREIGN KEY (last_read_item_id) REFERENCES timeline_items(id) ON DELETE SET NULL
-);
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,      -- BIGSERIAL の代替
+    user_id CHAR(36) NOT NULL,
+    last_read_item_id CHAR(26),
+    last_read_at DATETIME(6) NULL,
+    updated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6)
+        ON UPDATE CURRENT_TIMESTAMP(6),
+    UNIQUE KEY uq_read_status_user (user_id),
+    CONSTRAINT fk_read_status_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE INDEX idx_timeline_item_read_status_user_id ON timeline_item_read_status(user_id);
 ```
 
 ### 6.3 メッセージブローカー
-- **入力**: SQS キューから複数サービスのイベント受信
+- **入力**: QueuePort キューから複数サービスのイベント受信
   - Events Service: `EventCreated`, `EventArchived`, `EventInvitationAccepted`
   - Album Service: `AlbumCreated`, `MediaAdded`
   - Auth Service: `UserCreated`, `UserJoinedOrg`
@@ -728,7 +735,9 @@ CREATE INDEX idx_timeline_item_read_status_user_id ON timeline_item_read_status(
 | ライブラリ                     | 用途               | バージョン |
 | ------------------------------ | ------------------ | ---------- |
 | `github.com/gin-gonic/gin`     | Web フレームワーク | v1.10      |
-| `github.com/lib/pq`            | MySQL ドライバ     | v1.10      |
+| `github.com/go-sql-driver/mysql` | MySQL / MariaDB ドライバ | v1.8   |
+| `github.com/hibiken/asynq`     | Redis + BullMQ/asynq (Beta QueuePort) | v0.24 |
+| `github.com/oracle/oci-go-sdk/v65` | OCI Queue SDK (Prod QueuePort) | v65.0 |
 | `github.com/redis/go-redis/v9` | Redis ソートセット | v9.3       |
 | `github.com/oklog/ulid/v2`     | ULID 生成          | v2.1       |
 | `google.golang.org/grpc`       | Permission Service | v1.57      |
@@ -742,7 +751,7 @@ package infra
 import (
     "go.uber.org/fx"
     "github.com/gin-gonic/gin"
-    "github.com/lib/pq"
+    _ "github.com/go-sql-driver/mysql"
     "database/sql"
 )
 
@@ -753,7 +762,7 @@ func Module() fx.Option {
         fx.Provide(
             provideMySQLDB,
             provideRedisClient,
-            provideSQSClient,
+            provideQueueAdapter, // QueuePort (Beta: Redis+BullMQ / Prod: OCI Queue)
             provideGinEngine,
         ),
         // リポジトリプロバイダ
@@ -770,8 +779,9 @@ func Module() fx.Option {
             func(grpcConn *grpc.ClientConn) application.PermissionService {
                 return adapter.NewPermissionServiceClient(grpcConn)
             },
-            func(sqsClient *sqs.Client) application.SQSMessageConsumer {
-                return adapter.NewSQSMessageConsumerAdapter(sqsClient)
+            func(q application.QueuePort) application.QueueMessageConsumer {
+                // Beta: RedisBullMQConsumerAdapter / Prod: OCIQueueConsumerAdapter を q から構築
+                return adapter.NewQueueMessageConsumerAdapter(q)
             },
         ),
         // ユースケース
@@ -798,11 +808,24 @@ func Module() fx.Option {
 }
 
 func provideMySQLDB(cfg *config.DatabaseConfig) (*sql.DB, error) {
+    // go-sql-driver/mysql DSN (MySQL 8.x / MariaDB 10.6+ 互換)
     connStr := fmt.Sprintf(
-        "MySQL://%s:%s@%s:%d/%s?sslmode=require",
+        "%s:%s@tcp(%s:%d)/%s?parseTime=true&charset=utf8mb4&tls=preferred",
         cfg.User, cfg.Password, cfg.Host, cfg.Port, cfg.Database,
     )
-    return sql.Open("MySQL", connStr)
+    return sql.Open("mysql", connStr)
+}
+
+// provideQueueAdapter は QueuePort の実装を選択する
+func provideQueueAdapter(cfg *config.QueueConfig) (application.QueuePort, error) {
+    switch cfg.Provider {
+    case "redis-bullmq":
+        return adapter.NewRedisBullMQAdapter(cfg.RedisAddr), nil
+    case "oci-queue":
+        return adapter.NewOCIQueueAdapter(cfg.OCIQueueID)
+    default:
+        return nil, fmt.Errorf("unknown queue provider: %s", cfg.Provider)
+    }
 }
 
 func provideRedisClient(cfg *config.RedisConfig) *redis.Client {
@@ -846,7 +869,7 @@ recuerdo-timeline-svc/
 ├── cmd/
 │   ├── main.go                 # アプリケーション起動
 │   └── consumer/
-│       └── main.go             # SQS Consumer ワーカー
+│       └── main.go             # Queue Consumer ワーカー
 ├── internal/
 │   ├── domain/
 │   │   ├── timeline_item.go    # TimelineItem エンティティ
@@ -874,7 +897,7 @@ recuerdo-timeline-svc/
 │   │   │   ├── sqs_message_consumer.go
 │   │   │   └── permission_service_client.go
 │   │   ├── consumer/
-│   │   │   └── sqs_message_handler.go   # SQS Consumer logic
+│   │   │   └── queue_message_handler.go # Queue Consumer logic (Beta: Redis+BullMQ / Prod: OCI Queue)
 │   │   ├── presenter.go
 │   │   └── mapper.go
 │   └── infra/
@@ -908,14 +931,14 @@ recuerdo-timeline-svc/
 
 | レイヤー                       | 依存可能な対象   | 例                                    |
 | ------------------------------ | ---------------- | ------------------------------------- |
-| **フレームワーク＆ドライバ層** | すべて下位       | SQS Consumer → UseCase → Domain       |
+| **フレームワーク＆ドライバ層** | すべて下位       | Queue Consumer → UseCase → Domain       |
 | **インターフェースアダプタ層** | ユースケース以下 | Handler → UseCase → Domain            |
 | **ユースケース層**             | ドメイン層のみ   | GetUserTimeline → domain.TimelineItem |
 | **ドメイン層**                 | なし             | 自己完結                              |
 
 ### 8.2 境界の横断
 - **ポート経由**：ユースケース → リポジトリポート
-- **DTO 経由**：SQS メッセージ → DTO → ユースケース → ドメイン
+- **DTO 経由**：QueuePort メッセージ → DTO → ユースケース → ドメイン
 - **イベント駆動**：ドメインイベント → 他サービス（疎結合）
 
 ### 8.3 ルールの強制
@@ -933,7 +956,7 @@ recuerdo-timeline-svc/
 | -------------------- | ---- | ------------------------------ | -------------------------- |
 | **ユニットテスト**   | 70%  | ドメイン、ユースケース（Mock） | `testing` + `testify`      |
 | **統合テスト**       | 20%  | Handler + UseCase + Repo       | `testcontainers-go`        |
-| **エンドツーエンド** | 10%  | 全フロー（SQS 含む）           | docker-compose, API テスト |
+| **エンドツーエンド** | 10%  | 全フロー（QueuePort 含む）     | docker-compose, API テスト |
 
 ### 9.2 テスト例 (Go test code)
 
@@ -1119,7 +1142,7 @@ var (
     ErrTimelineItemNotFound      = errors.New("timeline item not found")
     ErrUnauthorizedToHide        = errors.New("not authorized to hide item")
     ErrPersistenceFailed         = errors.New("failed to persist item")
-    ErrInvalidMessage            = errors.New("invalid SQS message")
+    ErrInvalidMessage            = errors.New("invalid Queue message")
     ErrCursorInvalid             = errors.New("invalid cursor")
 )
 ```
@@ -1140,7 +1163,7 @@ var (
 ### 11.1 ロギング
 - **ライブラリ**: `go.uber.org/zap`
 - **レベル**: DEBUG, INFO, WARN, ERROR
-- **ログポイント**: SQS メッセージ受信、ドメイン操作、DB アクセス、可視性チェック結果
+- **ログポイント**: QueuePort メッセージ受信、ドメイン操作、DB アクセス、可視性チェック結果
 - **フォーマット**: JSON
 
 ### 11.2 認証・認可
@@ -1151,7 +1174,7 @@ var (
 ### 11.3 バリデーション
 - **入力**: HTTP request JSON スキーマバリデーション
 - **ドメイン**: TimelineItemType、Visibility、Payload 構造検証
-- **SQS**: メッセージスキーマバリデーション
+- **QueuePort**: メッセージスキーマバリデーション (Beta: Redis+BullMQ / Prod: OCI Queue)
 
 ### 11.4 キャッシング
 - **層**: Redis Sorted Set（スコア=occurred_at.Unix()）
@@ -1181,7 +1204,7 @@ var (
 | **1. インフラ準備**                     | MySQL パーティション作成、Redis setup | 1週間 | なし      |
 | **2. コア実装**                         | ドメイン層、ユースケース、リポジトリ  | 2週間 | フェーズ1 |
 | **3. HTTP + キャッシュ**                | Handler、Presenter、Redis キャッシュ  | 1週間 | フェーズ2 |
-| **4. SQS Consumer**                     | SQS メッセージハンドラ、ワーカー実装  | 1週間 | フェーズ3 |
+| **4. Queue Consumer**                     | QueuePort メッセージハンドラ、ワーカー実装  | 1週間 | フェーズ3 |
 | **5. テスト**                           | 統合・E2E テスト                      | 1週間 | フェーズ4 |
 | **6. デプロイ・データマイグレーション** | 本番へのロールアウト、既存データ移行  | 1週間 | フェーズ5 |
 
@@ -1194,7 +1217,7 @@ var (
 | **パーティショニング戦略**     | 月次（RANGE by year, month）    | 決定済み | 年4回の archive + テーブル削除 |
 | **Soft Delete vs Hard Delete** | Soft Delete（hidden フラグ）    | 決定済み | 監査証跡保持                   |
 | **カーソルエンコーディング**   | Base64（lastSeenID:occurredAt） | 決定済み | API 外部公開用                 |
-| **友人フィード更新頻度**       | リアルタイム（SQS 駆動）        | 決定済み | eventual consistency 許容      |
+| **友人フィード更新頻度**       | リアルタイム（QueuePort 駆動）  | 決定済み | eventual consistency 許容      |
 | **キャッシュの一貫性**         | Eventually Consistent           | 決定済み | 10分 TTL で十分                |
 | **グラフDB 導入**              | 未検討                          | 保留中   | 友人グラフが複雑化したら検討   |
 
@@ -1204,7 +1227,15 @@ var (
 
 - **Clean Architecture**: Robert C. Martin, "Clean Architecture"
 - **Event-Driven Architecture**: Sam Newman, "Building Event-Driven Microservices"
-- **MySQL Partitioning**: `https://www.MySQL.org/docs/15/ddl-partitioning.html`
+- **MySQL 8.x Partitioning**: `https://dev.mysql.com/doc/refman/8.0/en/partitioning.html`
+- **MariaDB Partitioning**: `https://mariadb.com/kb/en/partitioning-overview/`
+- **OCI MySQL HeatWave**: `https://docs.oracle.com/en-us/iaas/mysql-database/`
+- **OCI Queue Service**: `https://docs.oracle.com/en-us/iaas/Content/queue/`
+- **asynq (Redis queue)**: `https://github.com/hibiken/asynq`
 - **Redis Sorted Set**: `https://redis.io/docs/data-types/sorted-sets/`
 - **Cursor-Based Pagination**: `https://medium.com/swlh/pagination-in-graphql`
 - **Gin Framework**: `https://github.com/gin-gonic/gin`
+
+---
+
+最終更新: 2026-04-19 ポリシー適用

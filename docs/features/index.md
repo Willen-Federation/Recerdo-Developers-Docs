@@ -3,6 +3,14 @@
 Recerdo の機能レベル設計書（Feature Specification）一覧です。  
 各ドキュメントはユースケース・シーケンス図・API設計・データモデルを含む詳細仕様書です。
 
+!!! info "インフラポリシー（2026-04-19 適用）"
+    - 認証は **AWS Cognito のみ**。他AWSサービスは利用しない。
+    - プッシュ通知は **FCM**、メールは **Postfix + Dovecot + Rspamd（CoreServerV2 CORE+X）**。
+    - Feature Flag は **Flipt（OSS）**、ログ基盤は **Loki**。
+    - Beta はセルフホスト（XServer VPS 6core/10GB + Garage / MySQL(MariaDB互換) / Redis+BullMQ）、本番は **OCI ファースト**（OCI Object Storage / MySQL HeatWave / Queue / Cache with Redis）。
+    - メディアは **HLS（360/720/1080p・6秒セグメント）** と **HEIC→JPEG/WebP**、**Live Photo は画像+動画ペア保存**。
+    - **ハイライトはユーザー選択のみ**（自動生成なし）。
+
 ---
 
 <div class="grid cards" markdown>
@@ -66,3 +74,7 @@ Recerdo の機能レベル設計書（Feature Specification）一覧です。
 6. **エラーハンドリング** — 異常系定義
 7. **セキュリティ考慮** — 認可・データ保護
 8. **テスト戦略** — ユニット・統合テスト方針
+
+---
+
+最終更新: 2026-04-19 ポリシー適用

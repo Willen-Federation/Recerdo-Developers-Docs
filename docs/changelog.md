@@ -5,11 +5,62 @@ Recerdo Developer Docs の変更履歴です。
 
 ---
 
+## v0.6.1 — 2026-04-19 (ポリシー適用・最終クリーンアップ)
+
+### 追加
+
+- **[Permission API](api/permission.md)**: `/api/auth/sessions/*` / `/api/auth/tokens/*` / `/api/auth/permissions/*` / `/api/auth/roles/*` の HTTP API 仕様を新規追加。`api/index.md` から参照されていた未存在リンクを解消。
+- mkdocs.yml ナビゲーションに「権限 (Permission)」を追加。
+
+### 変更（旧システム記述の削除）
+
+- **`core/cost-performance-analysis.md`**: AWS SES / ECS Fargate / RDS / Aurora / CloudFront を推奨していた旧構成を全面改訂。Beta=XServer VPS + CoreServerV2 + Garage + Postfix、本番=OCI ファースト の新ポリシーに統一。§9「採用／不採用の理由」ポリシー対照表を追加。
+- **`core/deployment-strategy.md`**: Mermaid 図の MinIO ノードを Garage へ。k3s 参照を Docker Compose / OCI Container Instances / OKE へ。`#### TODO` を Postfix 方針に解決。
+- **`core/server-capacity-planning.md`**: スケールアウト閾値の "S3 + CloudFront"・"ECS Fargate + RDS" を OCI ベースに改訂。
+- **`core/poc-beta-scope.md`**: 移行ロードマップの "VPS → ECS Fargate" を "VPS → OCI Compute A1.Flex / OKE" に改訂。
+- **`core/environment-abstraction.md`**: `*_PROVIDER` 環境変数の記述に「AWS 系アダプタは未実装（Cognito のみ採用）」を明記。
+- **`api/auth.md` / `api/events.md` / `api/storage.md`**: 全ての `#### TODO` / `##### TODO` ヘッダーを削除。各 TODO は既存の仕様テキストで解決済みのため、見出しのみを除去。
+- **`clean-architecture/events-svc.md` / `clean-architecture/notifications-svc.md`**: TODO セクションを QueuePort / NotificationPort / Postfix SMTP の具体仕様に置換。
+- **`microservice/album-svc.md` / `clean-architecture/album-svc.md`**: 「ハイライトビデオ自動生成」表記をすべて「ユーザー選択による連結（`media_ids[]` 必須、ML 推薦なし）」に統一。
+
+### 検証
+
+- `grep -rn "TODO\|FIXME" docs/` → `changelog.md` の履歴記述のみ。
+- `grep -rn "ECS Fargate\|Aurora\|RDS\|CloudFront\|MinIO" docs/` → すべて「不採用」「比較表」「採用しない」文脈のみ。
+- `grep -rn "自動生成" docs/.../album-svc.md` → すべて「自動生成は行わない」の否定文脈のみ。
+- 内部リンク切れ 0 件。
+
+---
+
+## v0.6.0 — 2026-04-19 (ポリシー適用)
+
+### 変更（インフラ／メディア方針の一括適用）
+
+- **AWS は Cognito のみ** に限定。他のAWSサービス（SQS / SNS / SES / S3 / Lambda / CloudWatch 等）の記述を全ドキュメントから除去し、OSS / OCI プロダクトへ置き換え。
+- **Beta 構成**: XServer VPS（6 core / 10 GB） + CoreServerV2 CORE+X（6 GB）/ **Garage（S3互換OSS）** / **MySQL（MariaDB互換）** / **Redis + BullMQ・asynq** / **Postfix + Dovecot + Rspamd**。
+- **本番**: OCI ファースト（OCI Object Storage / MySQL HeatWave / Queue / Cache with Redis）。メールは CoreServerV2 CORE+X 継続。
+- **Feature Flag: Flipt** / **ログ: Loki** / **プッシュ: FCM** を明文化。
+- **メディアパイプライン**（`api/storage.md`, `api/album.md`）: 動画 → HLS（360p/720p/1080p・6秒セグメント）、HEIC → JPEG/WebP（libheif）、Live Photo → 画像+動画ペア（Apple `asset_identifier`）。`variants`（`hls_master_url` / `image_url` / `live_photo_video_url` 等）を API レスポンスに追加。
+- **ハイライト動画**: 自動生成を廃し、`media_ids[]` を必須とするユーザー選択方式に統一（`storage.md` / `album.md`）。
+- **Storage 削除ポリシー**: 論理削除 + 30日保持 → 物理パージ（原本 + 派生）。
+- **Auth API**: `#### TODO` を解消。Cognito（AuthN）+ Permission Service（AuthZ）+ JWKS 検証 の具体仕様に置換。
+- **Events API**: 4件の TODO を具体仕様化。
+    - 招待: 8文字大小区別なし Slug + QR + JWT（TTL 1時間, ワンタイム, 再発行可）+ FCM/Postfix SMTP 通知。
+    - アーカイブ: 論理 → 2年保持 → コールド（Garage / OCI Archive） → 7年で物理削除。
+    - コメント: 論理削除・15分以内編集履歴・メディア添付・メンション対応。
+    - リアクション: `{❤️, 😂, 🎉, 😢, 👏, 🔥}` 固定、Redis INCR + Timeline ファンアウト。
+- **Audit API**: "S3 archival" → "オブジェクトストレージアーカイブ" に改名、階層保管ポリシーを明記。
+- **Timeline / Features / Notifications / Feature Flag**: SQS・SNS・CloudWatch・Lambda 参照を除去し、Queue 抽象化 / Prometheus+Loki / Alertmanager ベースへ置換。
+- `index.md`: アーキテクチャ Mermaid 図を Cognito・Permission・Queue・Object Storage 構成に刷新。ポリシーサマリを追加。
+- 対象ページに `最終更新: 2026-04-19 ポリシー適用` フッターを付与。
+
+---
+
 ## v0.5.0 — 2026-04-19
 
 ### 追加（Notion レビューコメント反映・2026-04-18）
 
-- **[デプロイメント戦略](core/deployment-strategy.md)**: Beta（セルフホストVPS+レンタル）→ 本番（OCIファースト）への段階的移行戦略。AWS Cognito/SES は継続利用し、コンピュート・ストレージは OCI 安価シェイプへ。
+- **[デプロイメント戦略](core/deployment-strategy.md)**: Beta（セルフホストVPS+レンタル）→ 本番（OCIファースト）への段階的移行戦略。AWS Cognito を継続利用し、コンピュート・ストレージは OCI 安価シェイプへ。（注: この時点では SES も併用案として記載していたが、v0.6.0 で Postfix+Dovecot+Rspamd 自前運用へ改定。）
 - **[環境抽象化 & Feature Flag](core/environment-abstraction.md)**: ハードコード排除のための3層切替設計（環境変数 / Feature Flag / DI アダプタ）。12-factor 準拠。
 - **[キュー抽象化設計](microservice/queue-abstraction.md)**: SQS 一択を撤回し、BullMQ / Sidekiq / RabbitMQ / NATS / OCI Queue / SQS を Port & Adapter で差し替え可能に。Beta は Redis+BullMQ、本番は OCI Queue を第一推奨。
 - **[Admin Console Service（MS）](microservice/admin-console-svc.md)**: 管理者コンソールを独立マイクロサービスとして新設。RBAC・二段階承認・成り代わり・コマンドキューを含む。

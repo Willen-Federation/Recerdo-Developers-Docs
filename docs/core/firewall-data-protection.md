@@ -1,8 +1,11 @@
 # ファイアウォール & データプロテクション
 
 > **対象フェーズ**: PoC/Beta（段階的に強化）  
-> **最終更新**: 2026-04-15  
+> **最終更新**: 2026-04-19  
 > **ステータス**: 承認待ち
+
+!!! note "ポリシー準拠"
+    本ドキュメントは最新インフラポリシーに準拠しています。Beta 基盤は **XServer VPS + CoreServerV2 CORE+X**、AWS 利用は **Cognito のみ**。認証 JWT 検証は Cognito（AWS SDK 経由）、MySQL は **MariaDB 互換スキーマを維持**、バックアップは **Garage (S3互換 OSS) または OCI Object Storage** に保管。
 
 ---
 
@@ -19,13 +22,13 @@
                     └──────┬──────┘
                            │
                     ┌──────▼──────┐
-                    │  VPS        │  ← Layer 2: OS Firewall
-                    │  iptables / │
-                    │  ufw        │
+                    │ XServer VPS │  ← Layer 2: OS Firewall
+                    │ iptables /  │  (6 core / 10 GB)
+                    │ ufw         │
                     └──────┬──────┘
                            │
                     ┌──────▼──────┐
-                    │  nginx      │  ← Layer 3: Reverse Proxy
+                    │  Traefik    │  ← Layer 3: Reverse Proxy
                     │  (TLS/Rate  │     TLS終端 + Rate Limiting
                     │   Limiting) │
                     └──────┬──────┘
@@ -38,8 +41,8 @@
         └─────┬────┘ └────┬─────┘ └────┬─────┘
               │            │            │
         ┌─────▼────────────▼────────────▼─────┐
-        │           MySQL 8.0                  │  ← Layer 5: Data Security
-        │    (暗号化 at rest + TLS接続)          │     暗号化 + アクセス制御
+        │     MySQL 8.0 (MariaDB互換スキーマ)      │  ← Layer 5: Data Security
+        │    (暗号化 at rest + TLS接続)             │     暗号化 + アクセス制御
         └─────────────────────────────────────┘
 ```
 
@@ -49,13 +52,13 @@
 
 ### 2.1 なぜ Cloudflare Free Plan か
 
-| 機能 | Cloudflare Free | AWS WAF | 備考 |
-|---|---|---|---|
-| DDoS防御 | **無制限・無料** | Shield Standard (L3/L4のみ) | Cloudflare は L7 まで無料で防御 |
-| WAF ルール | 5 カスタムルール | $5/ACL + $1/ルール + $0.60/100万リクエスト | PoC/Beta では AWS WAF は過剰 |
-| SSL/TLS | **無料** | ACM無料（但しALB必要: $16/月） | Cloudflare は CDN 経由で TLS 提供 |
-| Rate Limiting | 1ルール無料 | WAF Rate-based Rule | 基本的な防御は無料枠で可能 |
-| 月額コスト | **$0** | **$30〜50+** | |
+| 機能 | Cloudflare Free | 備考 |
+|---|---|---|
+| DDoS防御 | **無制限・無料** | L3〜L7 まで無料で防御 |
+| WAF ルール | 5 カスタムルール | Beta フェーズはこの範囲で十分 |
+| SSL/TLS | **無料** | CDN 経由で TLS 提供 |
+| Rate Limiting | 1ルール無料 | 基本的な防御は無料枠で可能 |
+| 月額コスト | **¥0** | AWS WAF / Shield は採用しない（ポリシー） |
 
 ### 2.2 Cloudflare 設定
 
@@ -85,10 +88,10 @@ Browser Integrity Check: ON
 ### 2.3 Cloudflare → Origin 通信の保護
 
 ```
-# nginx で Cloudflare の IP のみ許可
+# Traefik / nginx で Cloudflare の IP のみ許可
 # Cloudflare IP ranges: https://www.cloudflare.com/ips/
 
-# /etc/nginx/conf.d/cloudflare-only.conf
+# 例: /etc/nginx/conf.d/cloudflare-only.conf
 set_real_ip_from 173.245.48.0/20;
 set_real_ip_from 103.21.244.0/22;
 set_real_ip_from 103.22.200.0/22;
@@ -271,7 +274,8 @@ server {
 ### 5.1 JWT 検証ミドルウェア
 
 ```go
-// middleware/auth.go — Firebase Auth JWT 検証
+// middleware/auth.go — AWS Cognito JWT (RS256) 検証
+// AWS 利用はポリシー上 Cognito のみ
 package middleware
 
 import (
@@ -279,52 +283,53 @@ import (
     "net/http"
     "strings"
 
-    firebase "firebase.google.com/go/v4"
-    "firebase.google.com/go/v4/auth"
     "github.com/gin-gonic/gin"
+    "github.com/lestrrat-go/jwx/v2/jwk"
+    "github.com/lestrrat-go/jwx/v2/jwt"
 )
 
 type AuthMiddleware struct {
-    client *auth.Client
+    jwks jwk.Set // Cognito JWKS (https://cognito-idp.<region>.amazonaws.com/<pool>/.well-known/jwks.json)
+    issuer string
+    audience string
 }
 
-func NewAuthMiddleware(app *firebase.App) (*AuthMiddleware, error) {
-    client, err := app.Auth(context.Background())
+func NewAuthMiddleware(ctx context.Context, jwksURL, issuer, audience string) (*AuthMiddleware, error) {
+    set, err := jwk.Fetch(ctx, jwksURL)
     if err != nil {
         return nil, err
     }
-    return &AuthMiddleware{client: client}, nil
+    return &AuthMiddleware{jwks: set, issuer: issuer, audience: audience}, nil
 }
 
 func (m *AuthMiddleware) Authenticate() gin.HandlerFunc {
     return func(c *gin.Context) {
-        // Bearer トークン抽出
         authHeader := c.GetHeader("Authorization")
         if authHeader == "" {
             c.AbortWithStatusJSON(http.StatusUnauthorized,
                 gin.H{"error": "missing authorization header"})
             return
         }
-
         parts := strings.SplitN(authHeader, " ", 2)
         if len(parts) != 2 || parts[0] != "Bearer" {
             c.AbortWithStatusJSON(http.StatusUnauthorized,
                 gin.H{"error": "invalid authorization format"})
             return
         }
-
-        // Firebase ID Token 検証
-        token, err := m.client.VerifyIDToken(
-            c.Request.Context(), parts[1])
+        tok, err := jwt.Parse([]byte(parts[1]),
+            jwt.WithKeySet(m.jwks),
+            jwt.WithIssuer(m.issuer),
+            jwt.WithAudience(m.audience),
+        )
         if err != nil {
             c.AbortWithStatusJSON(http.StatusUnauthorized,
                 gin.H{"error": "invalid token"})
             return
         }
-
-        // コンテキストにユーザー情報を設定
-        c.Set("uid", token.UID)
-        c.Set("email", token.Claims["email"])
+        c.Set("uid", tok.Subject())
+        if email, ok := tok.Get("email"); ok {
+            c.Set("email", email)
+        }
         c.Next()
     }
 }
@@ -393,10 +398,10 @@ func RequireOrgRole(roles ...string) gin.HandlerFunc {
 
 | レイヤー | 方式 | 実装 |
 |---|---|---|
-| 通信中 (in transit) | TLS 1.2/1.3 | Cloudflare + nginx + MySQL TLS接続 |
-| 保存時 (at rest) | AES-256 | MySQL: InnoDB tablespace encryption |
+| 通信中 (in transit) | TLS 1.2/1.3 | Cloudflare + Traefik + MySQL TLS接続 |
+| 保存時 (at rest) | AES-256 | MySQL (MariaDB互換スキーマ): InnoDB tablespace encryption |
 | アプリケーション | bcrypt / SHA-256 | パスワード: bcrypt, 連絡先ハッシュ: SHA-256 |
-| バックアップ | AES-256 | mysqldump → gpg 暗号化 → S3 |
+| バックアップ | AES-256 | mysqldump → gpg 暗号化 → Garage (Beta) / OCI Object Storage (本番) |
 
 ### 6.2 MySQL 暗号化設定
 
@@ -441,8 +446,9 @@ dsn := "user:pass@tcp(mysql:3306)/recerdo?tls=true&parseTime=true"
 | メールアドレス | 平文（検索用） | 本人 + 組織管理者のみ |
 | 電話番号 | AES-256 暗号化 | 本人のみ |
 | 連絡先ハッシュ | SHA-256 + SALT | フレンド提案処理のみ |
-| Firebase トークン | 環境変数 | アプリケーション内部のみ |
-| AWS クレデンシャル | 環境変数 or IAM Role | デプロイ環境のみ |
+| Cognito クライアント Secret | 環境変数 | アプリケーション内部のみ |
+| Garage / OCI Object Storage アクセスキー | 環境変数 or OCI Vault | デプロイ環境のみ |
+| SMTP 認証情報（Postfix Submission） | 環境変数 | Notification Svc のみ |
 
 ---
 
@@ -452,26 +458,34 @@ dsn := "user:pass@tcp(mysql:3306)/recerdo?tls=true&parseTime=true"
 
 | 対象 | 方式 | 頻度 | 保持期間 | 保存先 |
 |---|---|---|---|---|
-| MySQL | mysqldump + gzip + gpg | 日次 | 30日 | S3 (別リージョン) |
-| Redis | RDB スナップショット | 6時間毎 | 7日 | VPS ローカル |
+| MySQL (MariaDB互換) | mysqldump + gzip + gpg | 日次 | 30日 | **Garage (CoreServerV2) → 本番は OCI Object Storage** |
+| Redis | RDB スナップショット | 6時間毎 | 7日 | XServer VPS ローカル |
 | アプリ設定 | Git リポジトリ | コミット毎 | 無期限 | GitHub |
-| S3 メディア | S3 バージョニング | 自動 | 30日 | S3 |
+| メディア (Garage/OCI OSS) | バージョニング | 自動 | 30日 | Garage (Beta) / OCI Object Storage (本番) |
 
 ### 7.2 バックアップスクリプト
 
 ```bash
 #!/bin/bash
 # /opt/recerdo/scripts/backup-db.sh
+# Garage (S3互換 OSS) にバックアップする。本番は同じスクリプトで
+# STORAGE_ENDPOINT を OCI Object Storage に切替。
 set -euo pipefail
 
 BACKUP_DIR="/tmp/backup"
-S3_BUCKET="s3://recerdo-backups"
+BUCKET="s3://recerdo-backups"
 DATE=$(date +%Y%m%d_%H%M%S)
 GPG_RECIPIENT="backup@recerdo.app"
 
+# S3 互換 (Garage / OCI Object Storage) への接続情報
+export AWS_ACCESS_KEY_ID="${STORAGE_ACCESS_KEY}"
+export AWS_SECRET_ACCESS_KEY="${STORAGE_SECRET_KEY}"
+ENDPOINT="${STORAGE_ENDPOINT}"   # Beta: https://garage.coreserver.example.com
+                                  # Prod: https://objectstorage.ap-tokyo-1.oraclecloud.com
+
 mkdir -p "$BACKUP_DIR"
 
-# MySQL ダンプ
+# MySQL ダンプ (スキーマは MariaDB 互換)
 docker exec recerdo-mysql mysqldump \
   --single-transaction \
   --routines \
@@ -481,10 +495,10 @@ docker exec recerdo-mysql mysqldump \
   | gpg --encrypt --recipient "$GPG_RECIPIENT" \
   > "$BACKUP_DIR/mysql_${DATE}.sql.gz.gpg"
 
-# S3 アップロード
-aws s3 cp "$BACKUP_DIR/mysql_${DATE}.sql.gz.gpg" \
-  "$S3_BUCKET/mysql/" \
-  --storage-class STANDARD_IA
+# S3 互換ストレージへアップロード（aws-cli は S3 互換 API に対して使える）
+aws --endpoint-url "$ENDPOINT" s3 cp \
+  "$BACKUP_DIR/mysql_${DATE}.sql.gz.gpg" \
+  "$BUCKET/mysql/"
 
 # 古いバックアップ削除（ローカル）
 find "$BACKUP_DIR" -name "*.gpg" -mtime +7 -delete
@@ -524,9 +538,9 @@ echo "Backup completed: mysql_${DATE}.sql.gz.gpg"
 | ネットワーク | MySQL/Redis 外部非公開 | [ ] |
 | TLS | TLS 1.2+ 強制 | [ ] |
 | TLS | HSTS ヘッダー設定 | [ ] |
-| 認証 | Firebase Auth JWT 検証 | [ ] |
+| 認証 | **AWS Cognito** JWT 検証 | [ ] |
 | 認証 | ログイン Rate Limiting | [ ] |
-| データ | MySQL at-rest 暗号化 | [ ] |
+| データ | MySQL (MariaDB互換) at-rest 暗号化 | [ ] |
 | データ | バックアップ暗号化 | [ ] |
 | データ | 環境変数で機密管理 | [ ] |
 | Docker | internal ネットワーク分離 | [ ] |
@@ -538,14 +552,14 @@ echo "Backup completed: mysql_${DATE}.sql.gz.gpg"
 
 ## 9. PoC → Production セキュリティ強化パス
 
-| フェーズ | 追加するセキュリティ | コスト |
+| フェーズ | 追加するセキュリティ | コスト（概算） |
 |---|---|---|
-| PoC/Beta (現在) | Cloudflare Free + ufw + nginx + Firebase Auth | $0 |
-| Growth | Cloudflare Pro ($20/月) + AWS WAF ($30/月) | $50/月 |
-| Production | AWS Shield Advanced + WAF + GuardDuty + Secrets Manager | $3,000+/月 |
+| PoC/Beta (現在) | Cloudflare Free + ufw + Traefik + **AWS Cognito** + fail2ban | ¥0 |
+| Growth | Cloudflare Pro ($20/月) + OCI WAF ルール拡張 | 約 ¥3,000〜¥8,000/月 |
+| Production | OCI WAF + OCI Vault（シークレット管理）+ OCI Bastion + 監査強化 | OCI 利用料に内包 |
 
 !!! warning "PoC/Beta のセキュリティ限界"
-    Cloudflare Free の WAF は 5 ルールまで。高度な攻撃パターン（SQLi/XSS の詳細検知）には対応できないため、Growth フェーズで Cloudflare Pro または AWS WAF への移行が必要。
+    Cloudflare Free の WAF は 5 ルールまで。高度な攻撃パターン（SQLi/XSS の詳細検知）には対応できないため、Growth フェーズで Cloudflare Pro + **OCI WAF** への移行が必要。AWS WAF / Shield は **採用しない**（ポリシー）。
 
 ---
 

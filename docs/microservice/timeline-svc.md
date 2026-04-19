@@ -11,8 +11,8 @@
 recuerdoの全ユーザー・組織に対して、時系列で整理された活動フィードとメモリタイムラインを提供するドメイン層設計書。Timeline Serviceは「記憶層」として機能し、イベント・アルバム・メディア・友人接続・グループ参加といった重要な出来事をいつ・どのように起きたのかをユーザーに見える化する。過去のメモリを辿りながら友人との再会・関係の深化を支援するコア機能。
 
 Timeline Serviceの本質:
-- **イベント駆動アーキテクチャ**: Events Service・Album Service・Auth Service・Messaging Serviceから非同期SQSイベントを受信し、TimelineItemレコードを生成
-- **読み取り最適化設計**: 大規模な読み取り負荷に対応するため、Redis cache + MySQL partition + cursor-based pagination
+- **イベント駆動アーキテクチャ**: Events Service・Album Service・Auth Service・Messaging Service から **QueuePort（Beta: Redis+BullMQ/asynq、本番: OCI Queue Service）** 経由で非同期イベントを受信し、TimelineItemレコードを生成（AWS SQS は不使用、[基本的方針](../core/policy.md) 参照）
+- **読み取り最適化設計**: 大規模な読み取り負荷に対応するため、Redis cache + MySQL 8.0 / MariaDB 10.11 パーティション + cursor-based pagination
 - **イミュータブル・アペンドオンリー**: Timeline items は削除されず、visibility フラグで「表示/非表示」を制御
 - **権限・可視性管理**: PRIVATE（所有者のみ） / FRIENDS（友人グループのみ） / PUBLIC（全員表示）の3段階可視性
 
@@ -35,10 +35,10 @@ Key User Stories:
 
 | エンティティ    | 説明                                                                                                               | 主要属性                                                                                                                                                 |
 | --------------- | ------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| TimelineItem    | 時系列上の個別イベント。イミュータブル・append-only。削除されず visibility で非表示化。                            | id (ULID), user_id?, org_id?, event_id?, media_id?, item_type, payload (JSONB), occurred_at, created_at, visibility (PUBLIC/FRIENDS/PRIVATE), hidden_at? |
+| TimelineItem    | 時系列上の個別イベント。イミュータブル・append-only。削除されず visibility で非表示化。                            | id (ULID), user_id?, org_id?, event_id?, media_id?, item_type, payload (JSON), occurred_at, created_at, visibility (PUBLIC/FRIENDS/PRIVATE), hidden_at? |
 | UserFeed        | ユーザーの personalized timeline。ユーザーが作成したもの + フレンドが共有したもの + 所属org item。キャッシュ対象。 | user_id, last_fetched_at, cursor (ULID+timestamp), item_count                                                                                            |
 | OrgTimeline     | 組織レベルのタイムライン。Public/Friends items のみ。アグリゲート用。                                              | org_id, visibility (PUBLIC/FRIENDS), item_count, last_updated_at                                                                                         |
-| TimelinePayload | item_type 毎にスキーマが異なる JSONB。型チェック・バリデーション済み。                                             | event_id?, event_name?, album_name?, media_url?, thumbnail_url?, invited_by_user_id?, shared_by_user_id?, highlight_video_url?, memory_title?            |
+| TimelinePayload | item_type 毎にスキーマが異なる JSON。型チェック・バリデーション済み。                                             | event_id?, event_name?, album_name?, media_url?, thumbnail_url?, invited_by_user_id?, shared_by_user_id?, highlight_video_url?, memory_title?            |
 
 ### 値オブジェクト
 
@@ -47,7 +47,7 @@ Key User Stories:
 | TimelineItemType | enum. EVENT_CREATED, ALBUM_CREATED, MEDIA_ADDED, FRIEND_JOINED, EVENT_INVITATION_ACCEPTED, HIGHLIGHT_VIDEO_READY, MEMORY_SHARED                 | enum に含まれる値のみ。新タイプ追加時は EventService・Timeline Service で同期               |
 | Visibility       | PUBLIC / FRIENDS / PRIVATE                                                                                                                      | デフォルト FRIENDS。PRIVATE items は owner_id == user_id のときのみ表示                     |
 | FeedCursor       | cursor-based pagination 用 value object。last_seen_id (ULID) + last_seen_timestamp (occurred_at)。レスポンスに含める次ページ cursor を encode。 | occurred_at は unix timestamp。id は valid ULID。encode 時に "id:timestamp" 形式で base64。 |
-| TimelinePayload  | JSON Schema per item_type。バリデーション済み JSONB。media_url は Storage Service cdn proxy URL。                                               | schema 定義を enum/const で管理。未知の field は無視。                                      |
+| TimelinePayload  | JSON Schema per item_type。バリデーション済み JSON。media_url は Storage Service cdn proxy URL。                                               | schema 定義を enum/const で管理。未知の field は無視。                                      |
 | ULID             | Universally Unique Lexicographically Sortable Identifier。sortable by time。                                                                    | sortableで time-ordered。id generation は timestamp+randomness。                            |
 
 ### ドメインルール / 不変条件
@@ -70,8 +70,8 @@ Key User Stories:
 | TimelineItemHidden  | visibility を HIDDEN に set 時                                                       | timeline_item_id, reason (delete_event/user_request/privacy_change), timestamp     |
 | UserTimelineUpdated | user feed に新規 item add 時                                                         | user_id, item_count, updated_at                                                    |
 | OrgTimelineUpdated  | org timeline に新規 public/friends item add 時                                       | org_id, item_count, updated_at                                                     |
-| FriendshipCreated   | (Events Service から SQS) 新規友人接続 → 相手 PRIVATE items を visibility 確認後表示 | user_id_1, user_id_2, created_at                                                   |
-| EventDeleted        | (Events Service から SQS) イベント削除 → 関連 timeline items を hidden にする        | event_id, deleted_at                                                               |
+| FriendshipCreated   | (Events Service から QueuePort) 新規友人接続 → 相手 PRIVATE items を visibility 確認後表示 | user_id_1, user_id_2, created_at                                              |
+| EventDeleted        | (Events Service から QueuePort) イベント削除 → 関連 timeline items を hidden にする        | event_id, deleted_at                                                          |
 
 ### エンティティ定義（コードスケッチ）
 
@@ -84,7 +84,7 @@ type TimelineItem struct {
     EventID    *string           // 参照先 event (可能性あり)
     MediaID    *string           // 参照先 media (可能性あり)
     ItemType   TimelineItemType  // enum: EVENT_CREATED, ALBUM_CREATED, ...
-    Payload    TimelinePayload   // JSONB、item_type に応じた schema
+    Payload    TimelinePayload   // JSON、item_type に応じた schema
     OccurredAt time.Time         // 実際に起きた時刻（immutable）
     CreatedAt  time.Time         // DB insert 時刻
     Visibility Visibility        // PUBLIC / FRIENDS / PRIVATE
@@ -204,7 +204,7 @@ func DecodeFeedCursor(encoded string) (*FeedCursor, error) {
     return &FeedCursor{LastSeenID: id, LastSeenTimestamp: ts}, nil
 }
 
-// TimelinePayload - Value Object (JSONB wrapper)
+// TimelinePayload - Value Object (JSON wrapper)
 type TimelinePayload struct {
     data map[string]interface{}
 }
@@ -299,8 +299,8 @@ func (o *OrgTimeline) AddItem(item TimelineItem) error {
 | GetUserFeed              | GetUserFeedInput{requesting_user_id, cursor?, limit?}                                   | GetUserFeedOutput{items, next_cursor, has_more}        | 現在ユーザーの personalized feed。自分の items + フレンドの shared items。キャッシュ最適化 |
 | CreateTimelineItem       | CreateTimelineItemInput{user_id?, org_id?, item_type, payload, occurred_at, visibility} | CreateTimelineItemOutput{timeline_item_id, created_at} | 新規 timeline item 作成（内部API。Events Service・Album Service から呼び出し）             |
 | HideTimelineItem         | HideTimelineItemInput{timeline_item_id, reason}                                         | HideTimelineItemOutput{success}                        | item を非表示（soft delete）。cascade: 関連 items も hidden                                |
-| ConsumeEventServiceEvent | ConsumeEventServiceEventInput{sqs_event}                                                | ConsumeEventServiceEventOutput{timeline_items_created} | SQS から Event Service event 受信。ULID 生成・item 作成                                    |
-| ConsumeFriendshipEvent   | ConsumeFriendshipEventInput{sqs_event, user_id_1, user_id_2}                            | ConsumeFriendshipEventOutput{success}                  | SQS から friendship event。user_id_1 と user_id_2 の mutual access enable                  |
+| ConsumeEventServiceEvent | ConsumeEventServiceEventInput{queue_msg}                                                | ConsumeEventServiceEventOutput{timeline_items_created} | QueuePort（Beta: Redis+BullMQ/asynq、本番: OCI Queue）から Event Service event を受信。ULID 生成・item 作成 |
+| ConsumeFriendshipEvent   | ConsumeFriendshipEventInput{queue_msg, user_id_1, user_id_2}                            | ConsumeFriendshipEventOutput{success}                  | QueuePort から friendship event を受信。user_id_1 と user_id_2 の mutual access enable     |
 | CacheInvalidateUserFeed  | CacheInvalidateUserFeedInput{user_id}                                                   | CacheInvalidateUserFeedOutput{success}                 | Redis cache 無効化（item add 時に自動呼び出し）                                            |
 | PreloadFeedCache         | PreloadFeedCacheInput{user_id, limit?}                                                  | PreloadFeedCacheOutput{item_count, cache_key}          | User feed を Redis に preload。cold start 対策                                             |
 
@@ -382,7 +382,7 @@ type PermissionPort interface {
 }
 
 type EventServicePort interface {
-    // SQS consumer 経由で EventDeleted event 受け取り
+    // QueuePort（Beta: Redis+BullMQ/asynq、本番: OCI Queue Service）consumer 経由で EventDeleted event 受け取り
     // → HideTimelineItem cascade
 }
 
@@ -403,10 +403,12 @@ type HTTPTimelineHandler interface {
     GetUserFeed(w http.ResponseWriter, r *http.Request)
 }
 
-type SQSEventConsumerPort interface {
-    ConsumeEventServiceEvent(ctx context.Context, msg *sqs.Message) error
-    ConsumeFriendshipEvent(ctx context.Context, msg *sqs.Message) error
-    ConsumeEventDeletedEvent(ctx context.Context, msg *sqs.Message) error
+// QueueEventConsumerPort は QueuePort（Beta: Redis+BullMQ/asynq、本番: OCI Queue Service）から
+// メッセージを取得して各 Consume ユースケースにディスパッチする。
+type QueueEventConsumerPort interface {
+    ConsumeEventServiceEvent(ctx context.Context, msg port.Job) error
+    ConsumeFriendshipEvent(ctx context.Context, msg port.Job) error
+    ConsumeEventDeletedEvent(ctx context.Context, msg port.Job) error
 }
 ```
 
@@ -421,25 +423,25 @@ type SQSEventConsumerPort interface {
 | HTTPTimelineHandler            | GET /api/users/me/feed                  | GetUserFeedUseCase              |
 | HTTPTimelineHandler (Internal) | POST /api/timeline                      | CreateTimelineItemUseCase       |
 | HTTPTimelineHandler (Internal) | DELETE /api/timeline/{timeline_item_id} | HideTimelineItemUseCase         |
-| SQSConsumer                    | Queue: events.service.published         | ConsumeEventServiceEventUseCase |
-| SQSConsumer                    | Queue: auth.friendship_created          | ConsumeFriendshipEventUseCase   |
-| SQSConsumer                    | Queue: events.deleted                   | ConsumeEventDeletedEventUseCase |
+| QueueConsumer (BullMQ/asynq/OCI Queue) | Queue: recuerdo.events.service.published | ConsumeEventServiceEventUseCase |
+| QueueConsumer (BullMQ/asynq/OCI Queue) | Queue: recuerdo.auth.friendship_created  | ConsumeFriendshipEventUseCase   |
+| QueueConsumer (BullMQ/asynq/OCI Queue) | Queue: recuerdo.events.deleted           | ConsumeEventDeletedEventUseCase |
 
 ### リポジトリ実装
 
 | ポートインターフェース | 実装クラス                  | データストア                                            |
 | ---------------------- | --------------------------- | ------------------------------------------------------- |
-| TimelineItemRepository | MySQLTimelineItemRepository | MySQL 15 (timeline_items table, partition by month)     |
-| FeedCacheRepository    | RedisFeedCacheRepository    | Redis 7.x (Sorted Set by score=occurred_at timestamp)   |
-| OrgTimelineRepository  | MySQLOrgTimelineRepository  | MySQL 15 (org_timelines view + materialized aggregates) |
+| TimelineItemRepository | MySQLTimelineItemRepository | MySQL 8.0 / MariaDB 10.11 (timeline_items table, partition by month、CI で互換性テスト) |
+| FeedCacheRepository    | RedisFeedCacheRepository    | Redis 7.x (Sorted Set by score=occurred_at timestamp、Beta: XServer VPS / 本番: OCI Cache with Redis) |
+| OrgTimelineRepository  | MySQLOrgTimelineRepository  | MySQL 8.0 / MariaDB 10.11 (org_timelines view + 集計テーブル)                          |
 
 ### 外部サービスアダプタ
 
 | ポートインターフェース | アダプタクラス               | 外部システム                                                                |
 | ---------------------- | ---------------------------- | --------------------------------------------------------------------------- |
 | PermissionPort         | PermissionServiceGRPCAdapter | recuerdo-permission-svc (gRPC CheckFriendship, GetUser)                     |
-| EventPublisherPort     | SQSEventPublisher            | AWS SQS (timeline.events queue)                                             |
-| SQS Event Consumer     | SQSEventConsumer             | AWS SQS (events.service.published, auth.friendship_created, events.deleted) |
+| EventPublisherPort     | QueueEventPublisher          | QueuePort トピック `recuerdo.timeline.events`（Beta: Redis+BullMQ/asynq、本番: OCI Queue Service） |
+| QueueEventConsumerPort | QueueEventConsumer           | QueuePort トピック `recuerdo.events.service.published`, `recuerdo.auth.friendship_created`, `recuerdo.events.deleted` |
 
 ## 5. インフラストラクチャ層
 
@@ -449,12 +451,14 @@ Go 1.22 + net/http (HTTPサーバー) + chi/v5 (router) + 構造化ログ (zap) 
 
 ### データベース
 
-**MySQL 15.x** (main):
-- timeline_items table: 月単位でパーティション分割（RANGE partition by occurred_at）
+**MySQL 8.0 / MariaDB 10.11** (main; Beta: XServer VPS、本番: OCI MySQL HeatWave):
+- timeline_items table: 月単位でパーティション分割（`PARTITION BY RANGE (TO_DAYS(occurred_at))`、ALTER TABLE REORGANIZE PARTITION で月次追加）
 - インデックス: (user_id, occurred_at DESC), (org_id, occurred_at DESC), (event_id), (hidden_at)
+- JSON 列（`payload`）: MariaDB / MySQL の `JSON` 型を利用（PostgreSQL の JSONB ではない）
 - リテンション: 7年間の full timeline 保持
+- 互換性: `go-sql-driver/mysql` を利用し、MySQL 8.0 と MariaDB 10.11 双方を CI で検証（PostgreSQL 固有機能は不使用）
 
-**Redis 7.x** (cache):
+**Redis 7.x** (cache; Beta: XServer VPS 共用、本番: OCI Cache with Redis):
 - user:{user_id}:timeline → Sorted Set (members = timeline_item JSON, score = occurred_at timestamp)
 - TTL: 5分（頻繁にアクセスされるユーザー → 自動延長）
 - connection pool: max 20
@@ -464,12 +468,14 @@ Go 1.22 + net/http (HTTPサーバー) + chi/v5 (router) + 構造化ログ (zap) 
 | ライブラリ                               | 目的                                             | レイヤー       |
 | ---------------------------------------- | ------------------------------------------------ | -------------- |
 | github.com/oklog/ulid/v2                 | ULID 生成・parse（sortable ID）                  | Domain         |
-| github.com/jackc/pgx/v5                  | MySQL driver (connection pooling, batch queries) | Infrastructure |
+| github.com/go-sql-driver/mysql           | MySQL 8.0 / MariaDB 10.11 driver（connection pooling, batch queries） | Infrastructure |
 | github.com/redis/go-redis/v9             | Redis client (Sorted Set, cache操作)             | Infrastructure |
-| github.com/aws/aws-sdk-go-v2/service/sqs | AWS SQS consumer・publisher                      | Infrastructure |
+| github.com/hibiken/asynq                 | QueuePort Beta 実装（asynq / Go）                | Infrastructure |
+| taskforcesh/bullmq (Node ワーカー側)     | QueuePort Beta 実装（Redis+BullMQ）              | Infrastructure |
+| github.com/oracle/oci-go-sdk             | QueuePort 本番実装（OCI Queue Service）          | Infrastructure |
 | google.golang.org/grpc                   | Permission Service gRPC client                   | Infrastructure |
 | github.com/go-chi/chi/v5                 | HTTP router                                      | Infrastructure |
-| encoding/json                            | JSONB encode/decode                              | Infrastructure |
+| encoding/json                            | JSON encode/decode                              | Infrastructure |
 | go.opentelemetry.io/otel                 | distributed tracing・W3C traceparent             | Infrastructure |
 | uber-go/zap                              | structured logging                               | Infrastructure |
 | stretchr/testify                         | unit test assertions                             | Test           |
@@ -487,8 +493,8 @@ fx.Provide(
     
     // Service Adapters
     NewPermissionServiceGRPCAdapter,      // → PermissionPort
-    NewSQSEventPublisher,                 // → EventPublisherPort
-    NewSQSEventConsumer,                  // → SQSEventConsumer
+    NewQueueEventPublisher,               // → EventPublisherPort (Beta: Redis+BullMQ/asynq、本番: OCI Queue)
+    NewQueueEventConsumer,                // → QueueEventConsumerPort
     
     // Utilities
     NewULIDGenerator,                     // → ULIDGeneratorPort
@@ -504,7 +510,7 @@ fx.Provide(
     
     // Handlers
     NewHTTPTimelineHandler,
-    NewSQSEventConsumer,
+    NewQueueEventConsumer,
 )
 ```
 
@@ -600,10 +606,10 @@ recuerdo-timeline-svc/
 | Domain (entity/valueobject) | Unit test        | 外部依存なし                                                    | TimelineItem.Validate(), FeedCursor.Encode/Decode(), Visibility.IsValid() |
 | UseCase                     | Unit test        | mockery で全ポート（PermissionPort/EventPublisherPort）をモック | GetUserTimelineUseCase.Execute() with mocked repository                   |
 | Adapter (HTTP handler)      | Integration test | httptest.Server + mocked repositories                           | GET /api/users/{user_id}/timeline 完全フロー                              |
-| Infrastructure (MySQL)      | Integration test | testcontainers-go でMySQL 15コンテナ起動                        | timeline_items INSERT・partition、index query                             |
+| Infrastructure (MySQL)      | Integration test | testcontainers-go で MySQL 8.0 / MariaDB 10.11 コンテナを両方起動 | timeline_items INSERT・partition、index query（互換性 CI）              |
 | Infrastructure (Redis)      | Integration test | testcontainers-go でRedis 7コンテナ起動                         | feed cache SET/GET・TTL・Sorted Set操作                                   |
-| SQS Consumer                | Integration test | localstack (local SQS) + mocked repositories                    | SQS event consume → CreateTimelineItem                                    |
-| E2E                         | E2E test         | real MySQL・Redis・localstack SQS                               | create event → SQS consume → timeline item appears in feed                |
+| Queue Consumer              | Integration test | testcontainers-go で Redis + BullMQ（または asynq）を起動 + mocked repositories | Queue event consume → CreateTimelineItem                    |
+| E2E                         | E2E test         | real MySQL 8.0/MariaDB 10.11・Redis・Redis+BullMQ（testcontainers）    | create event → Queue consume → timeline item appears in feed |
 
 ### テストコード例
 
@@ -845,39 +851,41 @@ func TestGetUserTimelineHandler_Integration(t *testing.T) {
     assert.Equal(t, "user-1", *resp.Items[0].UserID)
 }
 
-// Integration Test: SQS Consumer
+// Integration Test: Queue Consumer（Beta: Redis+BullMQ/asynq、本番: OCI Queue Service）
 func TestConsumeEventServiceEvent_Integration(t *testing.T) {
-    // setup: real MySQL + mocked SQS (localstack)
-    pgContainer := setupMySQLContainer(t)
+    // setup: real MySQL 8.0 / MariaDB 10.11 + Redis（BullMQ / asynq 用）
+    dbContainer := setupMySQLContainer(t) // MySQL 8.0 または MariaDB 10.11
     redisContainer := setupRedisContainer(t)
-    
-    // localstack SQS
-    sqsClient := setupLocalStackSQS(t)
-    
-    // insert event message to localstack
+
+    // QueuePort 経由でメッセージを投入（Beta: asynq、テストでは redis-backed な testcontainer）
+    queuePort := newAsynqQueueAdapter(redisContainer.Addr())
+
     event := map[string]interface{}{
-        "event_id":     "evt-456",
-        "event_name":   "Team Gathering",
-        "event_type":   "EVENT_CREATED",
-        "user_id":      "user-2",
-        "occurred_at":  time.Now().Unix(),
-        "description":  "Annual team gathering",
+        "event_id":    "evt-456",
+        "event_name":  "Team Gathering",
+        "event_type":  "EVENT_CREATED",
+        "user_id":     "user-2",
+        "occurred_at": time.Now().Unix(),
+        "description": "Annual team gathering",
     }
     eventJSON, _ := json.Marshal(event)
-    
-    sqsClient.SendMessage(&sqs.SendMessageInput{
-        QueueUrl:    stringPtr(queueURL),
-        MessageBody: stringPtr(string(eventJSON)),
+
+    _ = queuePort.Enqueue(context.Background(), port.Job{
+        ID:      "job-1",
+        Topic:   "recuerdo.events.service.published",
+        Payload: eventJSON,
     })
-    
+
     // run consumer
-    consumer := NewSQSEventConsumer(repo, cache, sqsClient, queueURL)
-    err := consumer.ConsumeEventServiceEvent(context.Background(), &sqs.Message{
-        Body: stringPtr(string(eventJSON)),
+    consumer := NewQueueEventConsumer(repo, cache, queuePort)
+    err := consumer.ConsumeEventServiceEvent(context.Background(), port.Job{
+        ID:      "job-1",
+        Topic:   "recuerdo.events.service.published",
+        Payload: eventJSON,
     })
-    
+
     assert.NoError(t, err)
-    
+
     // verify: timeline_item inserted
     items, err := repo.QueryByEventID(context.Background(), "evt-456")
     assert.NoError(t, err)
@@ -934,11 +942,15 @@ func TestConsumeEventServiceEvent_Integration(t *testing.T) {
 
 | #   | 質問                                                                                                                            | ステータス | 決定                                                                                                                               |
 | --- | ------------------------------------------------------------------------------------------------------------------------------- | ---------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | Timeline item の retention policy は何年間か。7年間の full history 保持か、それともアーカイブ・削除ポリシーを導入するか         | Open       | 初期: 7年間 full retain。ユーザーボリューム増加時に partition rotate + archive S3 検討                                             |
+| 1   | Timeline item の retention policy は何年間か。7年間の full history 保持か、それともアーカイブ・削除ポリシーを導入するか         | ✅ Decided | 初期: 7年間 full retain（MySQL / MariaDB 10.11 互換、`PARTITION BY RANGE (YEAR*100+MONTH)`）。ボリューム増加時は月次 partition を Garage（Beta）／OCI Object Storage Archive tier（本番）へ NDJSON+gzip で冷蔵移送。AWS S3 は不使用（[基本的方針](../core/policy.md) §3.2） |
 | 2   | Redis cache TTL 5分で十分か。ホットユーザー（毎日複数回アクセス）はキャッシュミスが多くないか                                   | Open       | 初期: 5分。アクセスパターン分析後、ホットユーザーは 15分 に延長検討                                                                |
-| 3   | item_type 追加時の backward compatibility。新タイプを Timeline Service が理解しないメッセージが SQS に入ってきたときどう扱うか  | Open       | 未決定。unknown item_type は log + skip（削除されず store）。Consumer graceful degrade 設計予定                                    |
+| 3   | item_type 追加時の backward compatibility。新タイプを Timeline Service が理解しない QueuePort メッセージが流入したときどう扱うか | ✅ Decided | `unknown_item_type` 専用メトリクスをインクリメントしつつ log + skip（削除はせず DB に append-only で保存、Consumer は graceful degrade） |
 | 4   | org timeline の materialized view をいつ refresh するのか。毎回集計計算か、定期バッチか                                         | Open       | 初期: CreateTimelineItem + HideTimelineItem 時に incremental update（UPSERT）。夜間バッチで full recalc 検討                       |
 | 5   | Permission Service の friendship check で 150ms タイムアウト。Response time P95 > 100ms の場合、local friend cache を持つべきか | Open       | 未決定。Timeline Service が Permission Service dependency でレイテンシ増加。Cache local friends in Redis（sync latency <1sec）検討 |
-| 6   | SQS consumer の dead letter queue (DLQ) handling。poison message（invalid JSON）をどこに保存して alert するか                   | Open       | 未決定。SQS DLQ → CloudWatch Logs → Slack alert。manual replay 可能な形で s3 backup 検討                                           |
+| 6   | QueuePort consumer の dead letter queue (DLQ) handling。poison message（invalid JSON）をどこに保存して alert するか              | ✅ Decided | Beta: BullMQ failed queue / asynq archived queue、本番: OCI Queue DLQ に投入。Prometheus Alertmanager → admin-console-svc に Loki ログ通知。manual replay は Garage（Beta）/ OCI Object Storage（本番）に NDJSON+gzip で backup（AWS CloudWatch / S3 は不使用） |
 | 7   | Cursor pagination の安定性。occurred_at が同一の items が大量存在する場合、cursor offset が ambiguous になる可能性がある        | Open       | 未決定。occurred_at 同一時点では secondary sort を ID (tie-breaker) に追加。DB query で確認                                        |
 | 8   | Public/Friends timeline の "全員表示" アイテムを月単位で集計キャッシュする。月跨ぎ pagination はどう扱うか                      | Open       | 初期: cursor に month 情報を include。month 跨ぎ時に query 分割実装                                                                |
+
+---
+
+最終更新: 2026-04-19 ポリシー適用

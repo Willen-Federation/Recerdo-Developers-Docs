@@ -1,9 +1,12 @@
 # PoC/Beta スコープ定義 — バイブコーディング戦略
 
-> **対象フェーズ**: PoC → Closed Beta  
-> **開発アプローチ**: バイブコーディング（AI支援ラピッドプロトタイピング）  
-> **最終更新**: 2026-04-15  
+> **対象フェーズ**: PoC → Closed Beta
+> **開発アプローチ**: バイブコーディング（AI支援ラピッドプロトタイピング）
+> **最終更新**: 2026-04-19
 > **ステータス**: 承認待ち
+
+!!! note "ポリシー準拠"
+    本ドキュメントは最新インフラポリシーに準拠しています。Beta 基盤は **XServer VPS + CoreServerV2 CORE+X**（全 OSS）、認証は **AWS Cognito のみ**、オブジェクトストレージは **Garage (S3互換 OSS)**、メールは **Postfix+Dovecot+Rspamd**。ハイライト動画は **ユーザーが手動で選択したクリップを結合** する方針で、自動生成（ML / クラスタリング）は行いません。
 
 ---
 
@@ -26,9 +29,9 @@
 | 適する（AI委譲） | 適さない（手動実装） |
 |---|---|
 | REST API エンドポイント | JWT 検証ミドルウェア |
-| GORM モデル定義・マイグレーション | 暗号化・ハッシュ処理 |
-| バリデーションロジック | 課金・決済ロジック |
-| 単体テスト生成 | データ削除カスケード |
+| GORM モデル定義・マイグレーション（MariaDB 互換チェック付き） | 暗号化・ハッシュ処理 |
+| バリデーションロジック | Postfix/Dovecot/Rspamd 設定（メール送信の品質に直結） |
+| 単体テスト生成 | Garage / OCI Object Storage アダプタ境界 |
 | Docker Compose 設定 | 本番セキュリティ設定 |
 | API ドキュメント生成 | インフラ権限設計 |
 
@@ -50,11 +53,11 @@
 
 | 機能 | 優先度 | バイブコーディング適性 | 実装見積 |
 |---|---|---|---|
-| メール/パスワード登録・ログイン | P0 | 高（Firebase Auth SDK） | 1日 |
-| Google ソーシャルログイン | P0 | 高（Firebase SDK） | 0.5日 |
-| Apple ソーシャルログイン | P1 | 高（Firebase SDK） | 0.5日 |
+| メール/パスワード登録・ログイン | P0 | 高（Cognito Hosted UI） | 1日 |
+| Google ソーシャルログイン | P0 | 高（Cognito IdP 連携） | 0.5日 |
+| Apple ソーシャルログイン | P1 | 高（Cognito IdP 連携） | 0.5日 |
 | JWT トークン検証 (Go middleware) | P0 | 中（セキュリティレビュー必要） | 1日 |
-| パスワードリセット | P0 | 高（Firebase 組み込み） | 0.5日 |
+| パスワードリセット | P0 | 高（Cognito 組み込み） | 0.5日 |
 | SMS OTP 認証 | P2 | — | Phase 2 |
 | MFA (多要素認証) | P2 | — | Phase 3 |
 
@@ -75,7 +78,7 @@
 | イベント作成・編集・削除 | P0 | 高 | 1.5日 |
 | イベント参加・辞退 | P0 | 高 | 1日 |
 | イベント一覧・詳細表示 | P0 | 高 | 0.5日 |
-| リマインダー通知 | P1 | 高（FCM連携） | 1日 |
+| リマインダー通知 | P1 | 高（FCM 連携） | 1日 |
 | 繰り返しイベント | P2 | — | Phase 2 |
 
 #### タイムライン (Timeline) — P0
@@ -88,14 +91,21 @@
 | コメント機能 | P1 | 高 | 1日 |
 | メディア添付（複数画像） | P1 | 中 | 1.5日 |
 
-#### アルバム (Album) — P1
+#### アルバム (Album) & メディア変換 — P1
 
 | 機能 | 優先度 | バイブコーディング適性 | 実装見積 |
 |---|---|---|---|
 | アルバム作成・共有 | P1 | 高 | 1.5日 |
-| 写真アップロード | P1 | 中（S3署名付きURL） | 1.5日 |
+| 画像アップロード（**Garage 署名付きURL** 経由） | P1 | 中 | 1.5日 |
+| **HEIC → JPEG/WebP 自動変換（libheif / go-libheif）** | P1 | 中 | 1日 |
+| **動画 → HLS 自動変換（ffmpeg、360p/720p/1080p、6秒セグメント）** | P1 | 中 | 2日 |
+| **Live Photos ペア保存（画像 + 短尺 HLS、`asset_identifier` で紐付け）** | P1 | 中 | 1日 |
 | アルバム閲覧・ダウンロード | P1 | 高 | 1日 |
+| **ハイライト動画：ユーザーが手動でクリップを選択 → 結合 → HLS 配信** | P1 | 中 | 2日 |
 | コメント・タグ付け | P2 | — | Phase 2 |
+
+!!! warning "ハイライト動画は完全ユーザー選択制"
+    ML ベースの自動クラスタリング・スマートハイライト生成は **実装しません**。ユーザーが手動で選択したクリップをサーバー側で順に連結（ffmpeg concat）し、HLS として配信します。
 
 #### メッセージング — P1
 
@@ -111,7 +121,7 @@
 | 機能 | 優先度 | バイブコーディング適性 | 実装見積 |
 |---|---|---|---|
 | プッシュ通知（FCM） | P1 | 高（Firebase SDK） | 1.5日 |
-| メール通知（SES） | P1 | 高（AWS SDK） | 1日 |
+| メール通知（**Postfix SMTP 経由 / CoreServerV2**） | P1 | 高（標準 net/smtp） | 1日 |
 | 通知設定 ON/OFF | P1 | 高 | 0.5日 |
 | 通知テンプレート管理 | P2 | — | Phase 2 |
 
@@ -140,41 +150,48 @@
 
 ```
 Week 1
-├── Firebase プロジェクト作成 + Auth 設定
-├── Go JWT 検証ミドルウェア（Firebase JWKS対応）
-├── Docker Compose 環境整備（Go + MySQL + Redis + nginx）
-├── CI/CD パイプライン（GitHub Actions → VPS デプロイ）
+├── XServer VPS セットアップ（Docker Compose、Beta は単一ノード運用）
+├── CoreServerV2 CORE+X に Garage（S3互換 OSS）セットアップ
+├── CoreServerV2 に Postfix + Dovecot + Rspamd セットアップ（SPF/DKIM/DMARC）
+├── AWS Cognito User Pool 作成 + Hosted UI 設定
+├── Go JWT 検証ミドルウェア（Cognito JWKS 対応）
+├── Docker Compose 環境整備（Go + MySQL [MariaDB互換] + Redis + BullMQ + Traefik + Loki + Flipt）
+├── ffmpeg / libheif ワーカーコンテナ作成
+├── CI/CD パイプライン（GitHub Actions → XServer VPS デプロイ）
 └── 開発環境ドキュメント整備
 ```
 
-**バイブコーディングのポイント**: Docker Compose、CI/CD、nginx設定は AI に全文生成させて微調整のみ。
+**バイブコーディングのポイント**: Docker Compose、CI/CD、Traefik 設定は AI に全文生成させて微調整のみ。Postfix/Rspamd は手動で検証。IP warm-up を Week 1 から開始。
 
 ### Phase 1: コア機能（2〜3週間）
 
 ```
 Week 2-3
-├── Auth: Firebase Auth 統合 + JWT ミドルウェア
+├── Auth: Cognito 統合 + JWT ミドルウェア
 ├── Core: ユーザー・組織 CRUD API
 ├── Events: イベント CRUD + 参加管理
 ├── Timeline: 投稿 CRUD + ページネーション
-└── Storage: S3 署名付きURL生成
+└── Storage: Garage 署名付きURL 生成（S3 互換 SDK）
 ```
 
 ```
 Week 4
-├── 統合テスト
+├── 統合テスト（MariaDB 10.6 互換性チェック含む）
 ├── フロントエンド接続確認
 └── ステージング環境デプロイ
 ```
 
-**バイブコーディングのポイント**: 各サービスの CRUD は設計書 (DD/CA) を AI に渡して一括生成。テストも AI 生成 → 人間が境界値を追加。
+**バイブコーディングのポイント**: 各サービスの CRUD は設計書 (DD/CA) を AI に渡して一括生成。テストも AI 生成 → 人間が境界値を追加。DB スキーマは **MariaDB 10.6 互換性を CI でチェック**。
 
 ### Phase 2: 拡張機能（2〜3週間）
 
 ```
 Week 5-6
-├── Notification: FCM プッシュ通知 + SES メール
-├── Album: アルバム CRUD + 画像アップロード
+├── Notification: FCM プッシュ通知 + Postfix SMTP メール
+├── Album: アルバム CRUD + 画像アップロード（Garage）
+├── Media Transcoder: HEIC→JPEG/WebP + 動画→HLS（360p/720p/1080p）
+├── Live Photos ペア保存 (`com.apple.quicktime.content.identifier` の抽出)
+├── ハイライト動画: ユーザー選択 → ffmpeg concat → HLS 出力
 ├── Messaging: WebSocket 基盤 + 1対1チャット
 └── アクセスログミドルウェア
 ```
@@ -183,6 +200,7 @@ Week 5-6
 Week 7
 ├── E2E テスト
 ├── パフォーマンステスト（k6）
+├── HLS 変換負荷テスト（ffmpeg ワーカーの CPU 影響測定）
 ├── Beta ユーザー向けオンボーディング
 └── 本番環境デプロイ
 ```
@@ -192,12 +210,12 @@ Week 7
 | 項目 | 工数 |
 |---|---|
 | P0 機能 | 約 12人日 |
-| P1 機能 | 約 15人日 |
-| テスト・デプロイ | 約 5人日 |
-| **合計** | **約 32人日（7週間 @ 1人）** |
+| P1 機能（HLS/HEIC/Live Photos/ハイライト選択含む） | 約 20人日 |
+| テスト・デプロイ | 約 6人日 |
+| **合計** | **約 38人日（8週間 @ 1人）** |
 
 !!! tip "バイブコーディングによる短縮効果"
-    従来手法での見積: 約 60人日。バイブコーディングにより **約 45% の工数削減** を見込む。特に CRUD API・テスト・設定ファイルでの効果が大きい。
+    従来手法での見積: 約 70人日。バイブコーディングにより **約 45% の工数削減** を見込む。特に CRUD API・テスト・設定ファイルでの効果が大きい。
 
 ---
 
@@ -206,26 +224,42 @@ Week 7
 ```
 Frontend:
   - Flutter (iOS + Android + Web)
-  - Firebase Auth SDK
+  - AWS Cognito Hosted UI / SDK
   - Firebase Cloud Messaging SDK
+  - HLS.js / native HLS プレイヤー
 
 Backend:
   - Go 1.24 + Gin + GORM
-  - MySQL 8.0
-  - Redis 7.x
-  - nginx (Reverse Proxy + TLS)
+  - MySQL 8.0（スキーマは MariaDB 10.6 互換）
+  - Redis 7.x + BullMQ / asynq
+  - Traefik (Reverse Proxy + API Gateway + TLS)
+  - Flipt (Feature Flag OSS)
+  - Grafana Loki (ログ集約)
 
-Infrastructure:
-  - VPS (4vCPU / 8GB RAM) — Hetzner or DigitalOcean
-  - Docker Compose
+Media Processing:
+  - ffmpeg（HLS ABR、360p/720p/1080p、6秒セグメント）
+  - libheif / go-libheif（HEIC → JPEG/WebP）
+  - Live Photos ペア識別子: com.apple.quicktime.content.identifier
+
+Infrastructure (Beta):
+  - XServer VPS (6 core / 10 GB RAM)  — 計算層
+  - CoreServerV2 CORE+X (6 GB)         — Garage + メール + 静的 + バックアップ
+  - Docker Compose（Beta は単一ノード運用。本番は OCI Container Instances または OKE）
   - GitHub Actions (CI/CD)
   - Let's Encrypt (TLS)
+  - Cloudflare Free (CDN + WAF + DDoS)
+
+Object Storage:
+  - Garage (S3互換 OSS) on CoreServerV2 CORE+X
+
+Mail (Beta & Prod 共通):
+  - Postfix + Dovecot + Rspamd on CoreServerV2 CORE+X
+  - SPF / DKIM / DMARC 設定済み
+  - IP warm-up 30〜60日計画
 
 External Services:
-  - Firebase Auth (認証)
+  - AWS Cognito (認証 — AWS 利用はここのみ)
   - Firebase Cloud Messaging (プッシュ通知)
-  - AWS SES (メール配信)
-  - AWS S3 (ファイルストレージ)
 ```
 
 ---
@@ -236,10 +270,13 @@ Beta リリースのゲート条件:
 
 | 基準 | 条件 | 検証方法 |
 |---|---|---|
-| 機能完成度 | P0 機能 100% + P1 機能 50%以上 | フィーチャーフラグ確認 |
+| 機能完成度 | P0 機能 100% + P1 機能 50%以上 | Flipt でのフラグ確認 |
 | テストカバレッジ | ユニットテスト 60%以上 | `go test -cover` |
 | パフォーマンス | API レスポンス p95 < 500ms | k6 負荷テスト |
 | セキュリティ | 認証フロー動作確認 + HTTPS強制 | 手動テスト |
+| DB 互換性 | MariaDB 10.6 でも CI が PASS | GitHub Actions matrix |
+| メール到達率 | Gmail / Yahoo Japan への到達率 > 95% | Postmaster Tools + Rspamd ログ |
+| HLS 品質 | 主要3端末で再生、ABR 切替動作 | 手動テスト |
 | 可用性 | 24時間連続稼働テスト | サーバー監視 |
 | ドキュメント | API ドキュメント + セットアップガイド | レビュー |
 
@@ -251,11 +288,21 @@ Beta 終了後、プロダクションに移行する際に追加で必要な項
 
 | 項目 | 理由 | 見積 |
 |---|---|---|
-| VPS → ECS Fargate 移行 | オートスケール・可用性 | 3日 |
-| MySQL → RDS 移行 | 自動バックアップ・Multi-AZ | 2日 |
-| Redis → ElastiCache 移行 | マネージド運用 | 1日 |
-| Firebase Auth → Cognito 検討 | AWS統合・エンタープライズ機能 | 5日 |
-| WAF + Shield 導入 | DDoS防御 | 1日 |
+| XServer VPS → OCI Compute 移行 | オートスケール・可用性 | 3日 |
+| MySQL on VPS → OCI MySQL HeatWave 移行（**MariaDB 互換スキーマ維持**） | マネージド運用・HA | 2日 |
+| Redis on VPS → OCI Cache with Redis | マネージド運用 | 1日 |
+| Redis+BullMQ → **OCI Queue Service（AMQP 1.0）** | マネージド運用 | 2日 |
+| Garage on CoreServerV2 → **OCI Object Storage** | スケール・DR | 3日 |
+| Postfix+Dovecot+Rspamd on CoreServerV2 | **継続利用**（変更なし） | 0日 |
+| Cognito | **継続**（変更なし） | 0日 |
+| Cloudflare Pro へアップグレード（任意） | 高度な WAF | 0.5日 |
 | GDPR 完全対応 | データ削除カスケード | 5日 |
 | 監査ログ強化 | コンプライアンス | 3日 |
-| 負荷テスト（本格） | 10K同時接続 | 2日 |
+| 負荷テスト（本格） | 10K 同時接続 | 2日 |
+
+!!! info "移行ロードマップのポリシー"
+    VPS → **OCI Compute A1.Flex（または OKE）** への移行を採用。**AWS ECS Fargate / EC2 / Lambda は不採用**（ポリシー準拠）。
+
+---
+
+最終更新: 2026-04-19 ポリシー適用

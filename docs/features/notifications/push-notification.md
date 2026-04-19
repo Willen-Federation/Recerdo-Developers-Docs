@@ -9,7 +9,7 @@
 プッシュ通知は、Recuerdoアプリケーションでユーザーがオンラインでない場合にも、重要なイベント（メッセージ受信、思い出シェア、コメント追加など）をリアルタイムで通知する機能。Firebase Cloud Messaging (FCM) を**主軸**として、iOS および Android デバイスへの配信をサポート。ユーザー設定に基づいた配信制御、オフライン対応、再試行メカニズムをサポートする。
 
 !!! note "FCM-primary 方針"
-    通知チャネルはFCM（プッシュ）および IN_APP（アプリ内）を基本とする。メール通知は、セキュリティ関連通知・FCMトークン未登録ユーザー・法的通知・ユーザーがオプトインした週次ダイジェストなど特定条件下のみで使用する。詳細は [Notification Service DD — SES利用条件](../../microservice/notifications-svc.md#ses利用条件) を参照。
+    通知チャネルは FCM（プッシュ）および IN_APP（アプリ内）を基本とする。メール通知は、セキュリティ関連通知・FCMトークン未登録ユーザー・法的通知・ユーザーがオプトインした週次ダイジェストなど特定条件下のみで使用する。メール送信基盤は **Postfix + Dovecot + Rspamd on CoreServerV2 CORE+X**（自前SMTP）を採用し、AWS SES / SNS は利用しない。詳細は [Notification Service DD](../../microservice/notifications-svc.md) を参照。
 
 ## 2. ユースケース詳細
 
@@ -21,13 +21,13 @@
 
 **When**: メッセージ送信時（同期的に Messaging Service がイベント発行）
 
-**Where**: Notification Service が SQS イベントを受信
+**Where**: Notification Service がキュー経由でイベントを受信（Beta: Redis+BullMQ / 本番: OCI Queue）
 
 **Why**: ユーザーがアプリを開いていなくても、新しいメッセージの到着を認識できるようにする
 
 **How**: 
-1. Messaging Service が `message.created` イベントを SQS に発行
-2. Notification Service が SQS をポーリング、イベント受信
+1. Messaging Service が `message.created` イベントをキューに発行
+2. Notification Service がキューをコンシューム、イベント受信
 3. `NotificationType.MESSAGE_RECEIVED` として処理
 4. 受信者の DeviceToken（全デバイス）を取得
 5. 各デバイスの NotificationPreference をチェック（push_enabled = true?）
@@ -61,7 +61,7 @@
 **When**: Album Service で share リクエスト成功時
 
 **How**:
-1. Album Service が `memory.shared` イベント発行
+1. Album Service が `memory.shared` イベントをキュー（Beta: BullMQ / 本番: OCI Queue）へ発行
 2. Notification Service が受信、`NotificationType.MEMORY_SHARED` として処理
 3. シェア対象ユーザーの DeviceToken を取得
 4. FCM でプッシュ配信
@@ -107,18 +107,18 @@
 
 ## 3. 通知種別と優先度マトリックス
 
-| 通知種別             | 説明                     | 推奨優先度 | デフォルト配信チャネル  | メール（SES）利用条件         | ユーザー設定可能 |
-| -------------------- | ------------------------ | ---------- | ----------------------- | ----------------------------- | ---------------- |
-| MESSAGE_RECEIVED     | メッセージ受信           | HIGH       | PUSH, IN_APP            | FCMトークン未登録時のみ       | ✓                |
-| GROUP_CREATED        | グループ作成された       | NORMAL     | PUSH, IN_APP            | FCMトークン未登録時のみ       | ✓                |
-| MEMORY_SHARED        | 思い出がシェアされた     | NORMAL     | PUSH, IN_APP            | FCMトークン未登録時のみ       | ✓                |
-| MEMORY_LIKED         | 思い出が「いいね」された | LOW        | IN_APP                  | 不使用                        | ✓                |
-| COMMENT_ADDED        | コメント追加             | NORMAL     | PUSH, IN_APP            | FCMトークン未登録時のみ       | ✓                |
-| FRIEND_ADDED         | 友人追加されました       | LOW        | IN_APP                  | 不使用                        | △（固定）        |
-| USER_MENTIONED       | メンション               | HIGH       | PUSH, IN_APP            | FCM3回失敗フォールバック      | ✓                |
-| SECURITY_ALERT       | セキュリティ通知         | HIGH       | PUSH, IN_APP, **EMAIL** | **必須**（FCM状態問わず送信） | ✗（固定）        |
-| ACCOUNT_VERIFICATION | メールアドレス確認       | HIGH       | **EMAIL**               | **必須**                      | ✗（固定）        |
-| LEGAL_NOTICE         | 規約・ポリシー変更       | NORMAL     | IN_APP, **EMAIL**       | **必須**（証跡確保のため）    | ✗（固定）        |
+| 通知種別             | 説明                     | 推奨優先度 | デフォルト配信チャネル  | メール（Postfix SMTP）利用条件 | ユーザー設定可能 |
+| -------------------- | ------------------------ | ---------- | ----------------------- | ------------------------------ | ---------------- |
+| MESSAGE_RECEIVED     | メッセージ受信           | HIGH       | PUSH, IN_APP            | FCMトークン未登録時のみ        | ✓                |
+| GROUP_CREATED        | グループ作成された       | NORMAL     | PUSH, IN_APP            | FCMトークン未登録時のみ        | ✓                |
+| MEMORY_SHARED        | 思い出がシェアされた     | NORMAL     | PUSH, IN_APP            | FCMトークン未登録時のみ        | ✓                |
+| MEMORY_LIKED         | 思い出が「いいね」された | LOW        | IN_APP                  | 不使用                         | ✓                |
+| COMMENT_ADDED        | コメント追加             | NORMAL     | PUSH, IN_APP            | FCMトークン未登録時のみ        | ✓                |
+| FRIEND_ADDED         | 友人追加されました       | LOW        | IN_APP                  | 不使用                         | △（固定）        |
+| USER_MENTIONED       | メンション               | HIGH       | PUSH, IN_APP            | FCM3回失敗フォールバック       | ✓                |
+| SECURITY_ALERT       | セキュリティ通知         | HIGH       | PUSH, IN_APP, **EMAIL** | **必須**（FCM状態問わず送信）  | ✗（固定）        |
+| ACCOUNT_VERIFICATION | メールアドレス確認       | HIGH       | **EMAIL**               | **必須**                       | ✗（固定）        |
+| LEGAL_NOTICE         | 規約・ポリシー変更       | NORMAL     | IN_APP, **EMAIL**       | **必須**（証跡確保のため）     | ✗（固定）        |
 
 **優先度の意味**:
 - **HIGH**: 即座に配信。静穏時間帯も配信。バッファリングなし
@@ -240,9 +240,9 @@ sequenceDiagram
     participant User1 as User (Alice)
     participant App as iOS App
     participant Msg as Messaging Service
-    participant SQS as AWS SQS
+    participant Q as Queue (BullMQ / OCI Queue)
     participant Notif as Notification Service
-    participant DB as MySQL
+    participant DB as MySQL (MariaDB互換)
     participant FCM as Firebase Cloud Messaging
     participant User2Phone as User2 Phone
 
@@ -250,10 +250,10 @@ sequenceDiagram
     App ->> Msg: POST /api/messages (message)
     Msg -->> App: 201 Created
     
-    Msg ->> SQS: Publish "message.created" event
+    Msg ->> Q: Publish "message.created" event
     
-    Notif ->> SQS: Poll messages
-    SQS -->> Notif: {"message_id": "...", "to_user_id": "..."}
+    Notif ->> Q: Consume messages
+    Q -->> Notif: {"message_id": "...", "to_user_id": "..."}
     
     Notif ->> DB: SELECT notification_preference WHERE user_id = 'to_user_id'
     DB -->> Notif: {push_enabled: true, ...}
@@ -271,7 +271,7 @@ sequenceDiagram
     User2Phone -->> User2Phone: Display banner
     
     Notif ->> DB: INSERT notification_log (status: SENT)
-    Notif ->> SQS: Publish "notification.sent" event
+    Notif ->> Q: Publish "notification.sent" event
 ```
 
 ### 6.2 デバイストークン登録フロー
@@ -333,20 +333,20 @@ sequenceDiagram
 
   └─ FCM エラー: 一時的エラー (500)
       → 通知ログに retry_count = 1 で記録
-      → SQS DLQ に移動
+      → キューの DLQ に移動（BullMQ failed queue / OCI Queue DLQ）
       → 5分後に再試行
 
 2回目の配信試行
   └─ 再度失敗
       → retry_count = 2
-      → SQS DLQ 再キュー
+      → DLQ 再キュー
       → 10分後に再試行
 
 3回目の配信試行
   └─ 再度失敗
       → retry_count = 3
       → 通知ステータス = FAILED
-      → 管理者にアラート（CloudWatch）
+      → 管理者にアラート（Prometheus + Loki）
 ```
 
 ### 7.2 重複排除メカニズム
@@ -373,10 +373,10 @@ TTL: 24 hours
 
 ### 8.2 スケーリング戦略
 
-- **SQS**: 複数ワーカーでコンシューム
+- **キュー**: Beta は Redis+BullMQ、本番は OCI Queue。複数ワーカーでコンシューム
 - **FCM**: バッチ API 活用（最大500デバイス/リクエスト）
-- **MySQL**: notification_log テーブルにパーティショニング（日次）
-- **Redis**: キャッシュ層で Notification Service インスタンス間の同期
+- **MySQL（MariaDB互換）**: notification_log テーブルにパーティショニング（日次）
+- **Redis**: Beta は自前 Redis、本番は OCI Cache with Redis。Notification Service インスタンス間の同期に利用
 
 ## 9. セキュリティ・プライバシー
 
@@ -402,9 +402,10 @@ TTL: 24 hours
 
 ### 10.2 統合テスト
 
-- SQS → Notification Service → FCM フロー
+- Queue → Notification Service → FCM フロー
 - DeviceToken 有効性チェック
 - NotificationPreference 適用
+- Postfix SMTP 経由のメール配信（コンテナ化したテスト用 MTA）
 
 ### 10.3 E2E テスト
 
@@ -414,17 +415,17 @@ TTL: 24 hours
 
 ## 11. 監視・運用
 
-### 11.1 CloudWatch メトリクス
+### 11.1 メトリクス（Prometheus + Loki）
 
-- NotificationService/NotificationsSent (count/min)
-- NotificationService/NotificationsFailed (count/min)
-- NotificationService/FCMLatency (ms)
-- SQS/ApproximateNumberOfMessagesVisible
+- `notification_sent_total` (count/min)
+- `notification_failed_total` (count/min)
+- `fcm_request_duration_seconds` (histogram)
+- `queue_pending_jobs` / `queue_dlq_jobs`（BullMQ / OCI Queue）
 
 ### 11.2 アラート
 
 - FCM エラー率が 5% 超過時
-- SQS DLQ メッセージ蓄積時
+- キュー DLQ メッセージ蓄積時
 - DB 接続数が上限 80% 超過時
 
 ## 12. 将来の拡張
@@ -433,3 +434,7 @@ TTL: 24 hours
 - Webhook ベースの通知ルーティング
 - A/B テスト（配信時刻・メッセージテンプレート最適化）
 - ML ベースの最適配信時間予測
+
+---
+
+最終更新: 2026-04-19 ポリシー適用

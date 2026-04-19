@@ -58,7 +58,7 @@ Key User Stories:
 
 | イベント                   | トリガー                                                   | 主要ペイロード                                                                               |
 | -------------------------- | ---------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| AuditEntryRecorded         | SQS メッセージより新規AuditEntry作成時                     | entry_id, actor_id, action, resource_type, resource_id, timestamp, result                    |
+| AuditEntryRecorded         | QueuePort メッセージ（Beta: Redis+BullMQ/asynq、本番: OCI Queue）より新規 AuditEntry 作成時 | entry_id, actor_id, action, resource_type, resource_id, timestamp, result                    |
 | ArchivalCompleted          | ArchivalJob完了時                                          | job_id, archived_record_count, s3_location, completion_timestamp                             |
 | GDPRAnonymizationRequested | GDPR個人削除要請受信時                                     | anonymization_id, user_id, resource_ids, reason                                              |
 | GDPRAnonymizationCompleted | ユーザー情報の匿名化完了時                                 | anonymization_id, user_id, anonymized_record_count, completion_timestamp                     |
@@ -143,7 +143,7 @@ type ArchivalJob struct {
     CompletedAt   *time.Time `json:"completed_at"`
     Status        string     `json:"status"`         // PENDING / RUNNING / COMPLETED / FAILED
     RecordCount   int        `json:"record_count"`   // アーカイブされたレコード数
-    S3Location    *string    `json:"s3_location"`    // s3://bucket/prefix/...
+    ArchiveLocation *string  `json:"archive_location"` // object-storage://bucket/prefix/... (Beta: Garage / 本番: OCI Object Storage)
     ErrorMessage  *string    `json:"error_message"`
     CreatedAt     time.Time  `json:"created_at"`
     UpdatedAt     time.Time  `json:"updated_at"`
@@ -176,7 +176,7 @@ func (a *ArchivalJob) MarkAsCompleted(now time.Time, count int, s3Loc string) er
 
 | ユースケース           | 入力DTO                                                                                                        | 出力DTO                                                                      | 説明                                           |
 | ---------------------- | -------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- | ---------------------------------------------- |
-| RecordAuditEntry       | RecordAuditEntryInput{actor_id, action, resource_type, resource_id, result, reason?, ip, user_agent, metadata} | RecordAuditEntryOutput{entry_id}                                             | SQSメッセージ受信→監査ログ作成・保存           |
+| RecordAuditEntry       | RecordAuditEntryInput{actor_id, action, resource_type, resource_id, result, reason?, ip, user_agent, metadata} | RecordAuditEntryOutput{entry_id}                                             | QueuePort メッセージ受信→監査ログ作成・保存     |
 | QueryAuditLogs         | QueryAuditLogsInput{actor_id?, resource_type?, action?, from_ts?, to_ts?, limit, offset}                       | QueryAuditLogsOutput{entries[], total_count, next_offset}                    | 管理画面/レポート用の監査ログ検索              |
 | ExportAuditLogs        | ExportAuditLogsInput{actor_id?, resource_type?, action?, from_ts?, to_ts?, format (CSV/JSON)}                  | ExportAuditLogsOutput{file_url, expires_at}                                  | GDPR個人情報開示・コンプライアンスレポート生成 |
 | ArchiveOldLogs         | ArchiveOldLogsInput{retention_policy_id, batch_size}                                                           | ArchiveOldLogsOutput{archived_count, next_batch_offset, job_status}          | バッチジョブ: MySQL→S3への古いログ移行         |
@@ -191,12 +191,13 @@ func (a *ArchivalJob) MarkAsCompleted(now time.Time, count int, s3Loc string) er
 ## RecordAuditEntry — 主要ユースケース詳細
 
 ### トリガー
-- API Gatewayが AuthenticationFailed / PermissionDenied イベントをSQSに送信
-- Auth Service が login/logout イベントをSQSに送信
-- User Service / Org Service / Media Service 等が data mutation (WRITE/DELETE) イベントをSQSに送信
+- API Gateway が AuthenticationFailed / PermissionDenied イベントを QueuePort 経由で送信
+- Auth Service が login/logout イベントを QueuePort 経由で送信
+- User Service / Org Service / Storage Service 等が data mutation (WRITE/DELETE) イベントを QueuePort 経由で送信
+- QueuePort 実装: Beta は Redis + BullMQ (Node) / asynq (Go)、本番は OCI Queue Service（差分は Feature Flag + 環境変数で切替）
 
 ### フロー
-1. SQS メッセージをポーリングして取得
+1. QueuePort.Consume（Beta: Redis+BullMQ/asynq、本番: OCI Queue の long-poll）でメッセージを取得
 2. メッセージペイロードを RecordAuditEntryInput にデシリアライズ
    - 不正フォーマット → DLQへ移動、エラーログ記録
 3. ActorID存在チェック
@@ -208,14 +209,14 @@ func (a *ArchivalJob) MarkAsCompleted(now time.Time, count int, s3Loc string) er
    - トランザクション分離レベル: READ_COMMITTED
    - Uniqueness: (entry_id) は自動生成UUID、重複なし
 7. AuditEntryRecorded ドメインイベント発行
-   - SQS に publish → permission-svc・admin-dashboard・compliance-reporter が購読
+   - QueuePort.Publish(`recuerdo.audit.entry_recorded`) → permission-svc・admin-dashboard・compliance-reporter が購読
 8. QueryCache（Redis）をinvalidate (actor_id, resource_type キーで削除)
-9. メッセージをSQSから削除（visibility timeout満了前に成功をマーク）
+9. QueuePort.Ack でメッセージ削除（visibility timeout 満了前に成功をマーク。Redis+BullMQ は completedJob 処理、OCI Queue は DeleteMessage）
 10. 成功ログ: "AuditEntry recorded: entry_id={id}, actor_id={actor}, action={action}"
 
 ### 注意事項
-- SQS メッセージ処理は idempotent であること（entry_id が重複していないか確認）
-- MySQL commit の成功 → SQS delete の関係が重要（commit後にdeleteしないと重複記録が起きる）
+- QueuePort メッセージ処理は idempotent であること（entry_id が重複していないか確認）
+- MySQL/MariaDB commit の成功 → QueuePort.Ack の順序が重要（commit 後に ack しないと重複記録が起きる）
 - 処理時間目標: P99 100ms以内（キャッシュ invalidate のコスト含む）
 
 ### リポジトリ・サービスポート（インターフェース）
@@ -255,12 +256,15 @@ type ArchivalJobRepository interface {
 }
 
 // Service Ports
-type SQSConsumerPort interface {
-    ConsumeMessages(ctx context.Context, queueURL string, handler MessageHandler) error
+type QueuePort interface {
+    // 監査イベントの受信と発行を抽象化（Beta: Redis+BullMQ/asynq、本番: OCI Queue Service）
+    Consume(ctx context.Context, topic string, handler MessageHandler) error
+    Publish(ctx context.Context, topic string, payload []byte) error
+    Ack(ctx context.Context, messageID string) error
 }
 
 type EventPublisherPort interface {
-    Publish(ctx context.Context, event DomainEvent) error
+    Publish(ctx context.Context, event DomainEvent) error  // QueuePort 委譲
 }
 
 type QueryCachePort interface {
@@ -269,10 +273,11 @@ type QueryCachePort interface {
     Delete(ctx context.Context, key string) error
 }
 
-type S3ExportPort interface {
+type ObjectStorageExportPort interface {
+    // Garage（Beta）/ OCI Object Storage（本番）どちらも S3 互換 API で実装
     UploadCSV(ctx context.Context, entries []*AuditEntry, bucket, key string) (string, error)
     UploadJSON(ctx context.Context, entries []*AuditEntry, bucket, key string) (string, error)
-    ArchiveRecords(ctx context.Context, entries []*AuditEntry, bucket, prefix string) (string, error)
+    ArchiveRecords(ctx context.Context, entries []*AuditEntry, bucket, prefix string) (string, error)  // Parquet / NDJSON アーカイブ
 }
 
 type GDPRAnonymizationPort interface {
@@ -288,7 +293,7 @@ type GDPRAnonymizationPort interface {
 
 | コントローラ           | ルート/トリガー          | ユースケース                                       |
 | ---------------------- | ------------------------ | -------------------------------------------------- |
-| SQSAuditConsumer       | Queue: audit-events      | RecordAuditEntryUseCase                            |
+| QueueAuditConsumer     | Topic: `recuerdo.audit.events` | RecordAuditEntryUseCase                      |
 | QueryAuditLogsHandler  | POST /admin/audit/query  | QueryAuditLogsUseCase                              |
 | ExportAuditLogsHandler | POST /admin/audit/export | ExportAuditLogsUseCase                             |
 | GDPRAnonymizeHandler   | POST /gdpr/anonymize     | AnonymizeGDPRDataUseCase                           |
@@ -301,30 +306,30 @@ type GDPRAnonymizationPort interface {
 
 | ポートインターフェース      | 実装クラス               | データストア                                             |
 | --------------------------- | ------------------------ | -------------------------------------------------------- |
-| AuditEntryRepository        | MySQLAuditRepository     | MySQL 14+ (audit_entries テーブル、月ごとパーティション) |
-| RetentionPolicyRepository   | MySQLRetentionRepository | MySQL (retention_policies テーブル)                      |
-| GDPRAnonymizationRepository | MySQLGDPRRepository      | MySQL (gdpr_anonymizations テーブル)                     |
-| ArchivalJobRepository       | MySQLArchivalRepository  | MySQL (archival_jobs テーブル)                           |
-| QueryCachePort              | RedisQueryCache          | Redis 7.x (キー: audit_query:{hash}, TTL: 5分)           |
+| AuditEntryRepository        | MySQLAuditRepository     | MySQL 8.0 / MariaDB 10.11 (audit_entries テーブル、月ごと RANGE パーティション) |
+| RetentionPolicyRepository   | MySQLRetentionRepository | MySQL 8.0 / MariaDB 10.11 (retention_policies テーブル)                         |
+| GDPRAnonymizationRepository | MySQLGDPRRepository      | MySQL 8.0 / MariaDB 10.11 (gdpr_anonymizations テーブル)                        |
+| ArchivalJobRepository       | MySQLArchivalRepository  | MySQL 8.0 / MariaDB 10.11 (archival_jobs テーブル)                              |
+| QueryCachePort              | RedisQueryCache          | Redis 7.x (キー: audit_query:{hash}, TTL: 5分)                                  |
 
 ### 外部サービスアダプタ
 
 | ポートインターフェース | アダプタクラス     | 外部システム                           |
 | ---------------------- | ------------------ | -------------------------------------- |
-| SQSConsumerPort        | AWSSDKSQSConsumer  | AWS SQS (recuerdo-audit-events キュー) |
-| EventPublisherPort     | AWSSDKSQSPublisher | AWS SQS (audit-entry-recorded キュー)  |
-| S3ExportPort           | AWSS3Adapter       | AWS S3 (recuerdo-audit-exports bucket) |
-| GDPRAnonymizationPort  | SHA256Anonymizer   | 標準ライブラリ crypto/sha256           |
+| QueuePort              | **Beta:** `RedisBullMQAdapter` / `AsynqAdapter` / **本番:** `OCIQueueAdapter` | Redis 7.x + BullMQ/asynq / OCI Queue Service（Topic: `recuerdo.audit.events`） |
+| EventPublisherPort     | `QueueEventPublisher`（QueuePort 委譲） | Topic: `recuerdo.audit.entry_recorded`                   |
+| ObjectStorageExportPort | **Beta:** `GarageArchivalAdapter` / **本番:** `OCIArchivalAdapter` | Garage（S3 互換 OSS, CoreServerV2 CORE+X）/ OCI Object Storage。バケット: `recuerdo-audit-exports` |
+| GDPRAnonymizationPort  | `SHA256Anonymizer` | 標準ライブラリ crypto/sha256                                               |
 
 ## 5. インフラストラクチャ層
 
 ### Webフレームワーク
 
-Go 1.22 + net/http + chi (HTTP ルーター) + aws-sdk-go-v2 (SQS/S3クライアント)
+Go 1.22 + net/http + chi (HTTP ルーター) + aws-sdk-go-v2/service/s3（**S3 互換 API クライアント** として Garage / OCI Object Storage を操作）+ hibiken/asynq または Redis + BullMQ クライアント（Beta）/ OCI SDK（本番）
 
 ### データベース
 
-MySQL 14以上。audit_entriesテーブルは月ごとパーティション（RANGE パーティショニング by created_at）で、古いパーティションの高速削除・アーカイブを実現。
+MySQL 8.0 / MariaDB 10.11（互換性テスト必須。すべてのクエリを両方で CI 実行）。audit_entries テーブルは月ごとパーティション（RANGE パーティショニング by created_at）で、古いパーティションの高速削除・アーカイブを実現。Beta: XServer VPS 自己運用、本番: OCI MySQL HeatWave。
 
 #### SQL スキーマ例
 
@@ -337,40 +342,44 @@ CREATE TABLE audit_entries (
     action VARCHAR(50) NOT NULL,
     resource_type VARCHAR(50) NOT NULL,
     resource_id VARCHAR(255) NOT NULL,
-    timestamp TIMESTAMPTZ NOT NULL,
+    timestamp TIMESTAMP(6) NOT NULL,
     result VARCHAR(20) NOT NULL,
     reason TEXT,
     ip_address VARCHAR(45),
     user_agent TEXT,
-    metadata JSONB,
-    created_at TIMESTAMPTZ NOT NULL,
-    archived_at TIMESTAMPTZ,
+    metadata JSON,
+    created_at TIMESTAMP(6) NOT NULL,
+    archived_at TIMESTAMP(6),
     
     CONSTRAINT chk_action CHECK (action IN ('READ','WRITE','DELETE','LOGIN','LOGOUT','PERMISSION_CHECK','ADMIN_ACTION')),
     CONSTRAINT chk_resource_type CHECK (resource_type IN ('USER','ORG','MEDIA','ALBUM','EVENT','MESSAGE','ROLE','INTEGRATION')),
     CONSTRAINT chk_result CHECK (result IN ('SUCCESS','FAILURE'))
-) PARTITION BY RANGE (created_at);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
+  PARTITION BY RANGE (YEAR(created_at) * 100 + MONTH(created_at)) (
+    PARTITION p202604 VALUES LESS THAN (202605),
+    PARTITION p202605 VALUES LESS THAN (202606),
+    PARTITION p202606 VALUES LESS THAN (202607),
+    PARTITION pmax    VALUES LESS THAN MAXVALUE
+  );
 
--- 月次パーティション例
-CREATE TABLE audit_entries_202604 PARTITION OF audit_entries
-    FOR VALUES FROM ('2026-04-01'::timestamptz) TO ('2026-05-01'::timestamptz);
-
-CREATE INDEX idx_audit_entries_202604_actor_id ON audit_entries_202604(actor_id);
-CREATE INDEX idx_audit_entries_202604_resource_id ON audit_entries_202604(resource_id);
-CREATE INDEX idx_audit_entries_202604_created_at ON audit_entries_202604(created_at);
-CREATE INDEX idx_audit_entries_202604_action_resource ON audit_entries_202604(action, resource_type);
+-- 月次パーティションは ALTER TABLE ... REORGANIZE PARTITION で追加／削除する
+-- （PostgreSQL の CREATE TABLE ... PARTITION OF は MySQL/MariaDB に存在しないため使用しない）
+CREATE INDEX idx_audit_entries_actor_id       ON audit_entries(actor_id);
+CREATE INDEX idx_audit_entries_resource_id    ON audit_entries(resource_id);
+CREATE INDEX idx_audit_entries_created_at     ON audit_entries(created_at);
+CREATE INDEX idx_audit_entries_action_resource ON audit_entries(action, resource_type);
 
 -- retention_policies テーブル
 CREATE TABLE retention_policies (
-    policy_id UUID PRIMARY KEY,
-    resource_type VARCHAR(50),
-    action VARCHAR(50),
-    retention_days INTEGER NOT NULL,
-    archive_after_days INTEGER NOT NULL,
-    is_gdpr_sensitive BOOLEAN DEFAULT FALSE,
-    created_at TIMESTAMPTZ NOT NULL,
-    updated_at TIMESTAMPTZ NOT NULL,
-    
+    policy_id          CHAR(36)    NOT NULL,               -- UUID 文字列 (gen_random_uuid() は不使用)
+    resource_type      VARCHAR(50),
+    action             VARCHAR(50),
+    retention_days     INT         NOT NULL,
+    archive_after_days INT         NOT NULL,
+    is_gdpr_sensitive  TINYINT(1)  NOT NULL DEFAULT 0,
+    created_at         DATETIME(6) NOT NULL,
+    updated_at         DATETIME(6) NOT NULL,
+    PRIMARY KEY (policy_id),
     CONSTRAINT chk_retention_days CHECK (retention_days > 0),
     CONSTRAINT chk_archive_days CHECK (archive_after_days <= retention_days)
 );
@@ -382,12 +391,12 @@ CREATE TABLE gdpr_anonymizations (
     anonymization_id UUID PRIMARY KEY,
     user_id VARCHAR(255) NOT NULL,
     resource_ids TEXT[] NOT NULL,
-    anonymized_at TIMESTAMPTZ,
+    anonymized_at TIMESTAMP(6),
     reason VARCHAR(100) NOT NULL,
     operator_id VARCHAR(255) NOT NULL,
     status VARCHAR(50) NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL,
-    updated_at TIMESTAMPTZ NOT NULL,
+    created_at TIMESTAMP(6) NOT NULL,
+    updated_at TIMESTAMP(6) NOT NULL,
     
     CONSTRAINT chk_status CHECK (status IN ('QUEUED','PROCESSING','COMPLETED','FAILED'))
 );
@@ -398,15 +407,15 @@ CREATE INDEX idx_gdpr_anonymizations_status ON gdpr_anonymizations(status);
 -- archival_jobs テーブル
 CREATE TABLE archival_jobs (
     job_id UUID PRIMARY KEY,
-    scheduled_at TIMESTAMPTZ NOT NULL,
-    started_at TIMESTAMPTZ,
-    completed_at TIMESTAMPTZ,
+    scheduled_at TIMESTAMP(6) NOT NULL,
+    started_at TIMESTAMP(6),
+    completed_at TIMESTAMP(6),
     status VARCHAR(50) NOT NULL,
     record_count INTEGER,
     s3_location VARCHAR(512),
     error_message TEXT,
-    created_at TIMESTAMPTZ NOT NULL,
-    updated_at TIMESTAMPTZ NOT NULL,
+    created_at TIMESTAMP(6) NOT NULL,
+    updated_at TIMESTAMP(6) NOT NULL,
     
     CONSTRAINT chk_status CHECK (status IN ('PENDING','RUNNING','COMPLETED','FAILED'))
 );
@@ -419,9 +428,10 @@ CREATE INDEX idx_archival_jobs_scheduled_at ON archival_jobs(scheduled_at);
 
 | ライブラリ                | 目的                            | レイヤー       |
 | ------------------------- | ------------------------------- | -------------- |
-| aws-sdk-go-v2/service/sqs | SQS メッセージ消費・発行        | Infrastructure |
-| aws-sdk-go-v2/service/s3  | S3 へのエクスポート・アーカイブ | Infrastructure |
-| github.com/lib/pq         | MySQL ドライバ                  | Infrastructure |
+| hibiken/asynq (Go) / BullMQ (Node) | Beta: Redis ベースの QueuePort 実装 | Infrastructure |
+| OCI Queue Service SDK     | 本番: OCI Queue 実装            | Infrastructure |
+| aws-sdk-go-v2/service/s3  | **S3 互換 API クライアント** として Garage / OCI Object Storage にエクスポート・アーカイブ | Infrastructure |
+| github.com/go-sql-driver/mysql | MySQL 8.0 / MariaDB 10.11 両対応ドライバ | Infrastructure |
 | go-redis/v9               | Redis クエリキャッシュ          | Infrastructure |
 | github.com/google/uuid    | UUID 生成                       | Domain         |
 | github.com/go-chi/chi/v5  | HTTP ルーター                   | Adapter        |
@@ -433,7 +443,7 @@ CREATE INDEX idx_archival_jobs_scheduled_at ON archival_jobs(scheduled_at);
 
 ### 依存性注入
 
-uber-go/fx を使用。SQS コンシューマと HTTP ハンドラを分離可能に設計。
+uber-go/fx を使用。QueuePort コンシューマと HTTP ハンドラを分離可能に設計。
 
 ```go
 fx.Provide(
@@ -447,10 +457,12 @@ fx.Provide(
     NewMySQLGDPRRepository,
     NewMySQLArchivalRepository,
     
-    // External Services
-    NewAWSSDKSQSConsumer,
-    NewAWSSDKSQSPublisher,
-    NewAWSS3Adapter,
+    // External Services (Feature Flag で Beta / 本番切替)
+    NewRedisBullMQAdapter,        // → QueuePort (Beta, Node) / NewAsynqAdapter (Beta, Go)
+    NewOCIQueueAdapter,           // → QueuePort (本番)
+    NewQueueEventPublisher,       // → EventPublisherPort (QueuePort 委譲)
+    NewGarageArchivalAdapter,     // → ObjectStorageExportPort (Beta)
+    NewOCIArchivalAdapter,        // → ObjectStorageExportPort (本番)
     NewSHA256Anonymizer,
     NewRedisQueryCache,
     
@@ -463,7 +475,7 @@ fx.Provide(
     NewScheduleArchivalJobUseCase,
     
     // Handlers
-    NewSQSAuditConsumer,
+    NewQueueAuditConsumer,
     NewQueryAuditLogsHandler,
     NewExportAuditLogsHandler,
     NewGDPRAnonymizeHandler,
@@ -473,7 +485,7 @@ fx.Provide(
 
 fx.Invoke(
     RegisterHTTPRoutes,    // chi ルーターの登録
-    StartSQSConsumer,      // SQS ポーリング開始
+    StartQueueConsumer,    // QueuePort 購読開始
     StartArchivalScheduler, // Cron スケジューラ開始
 )
 ```
@@ -504,10 +516,10 @@ recuerdo-audit-svc/
 │   │   ├── event/domain_events.go
 │   │   └── errors.go
 │   ├── usecase/
-│   │   ├── record_audit_entry.go    # SQS メッセージ → DB 保存
+│   │   ├── record_audit_entry.go    # QueuePort メッセージ → DB 保存
 │   │   ├── query_audit_logs.go      # 管理画面検索
 │   │   ├── export_audit_logs.go     # GDPR / コンプライアンスレポート
-│   │   ├── archive_old_logs.go      # MySQL → S3 移行
+│   │   ├── archive_old_logs.go      # MySQL/MariaDB → オブジェクトストレージ（Garage/OCI）移行
 │   │   ├── anonymize_gdpr_data.go   # GDPR 削除対応
 │   │   ├── get_retention_policies.go
 │   │   ├── create_retention_policy.go
@@ -515,7 +527,7 @@ recuerdo-audit-svc/
 │   │   ├── get_anonymization_status.go
 │   │   └── port/
 │   │       ├── repository.go        # AuditEntryRepository等のインターフェース
-│   │       └── service.go           # SQSConsumerPort等のインターフェース
+│   │       └── service.go           # QueuePort・ObjectStorageExportPort 等のインターフェース
 │   ├── adapter/
 │   │   ├── http/
 │   │   │   ├── query_handler.go     # POST /admin/audit/query
@@ -524,7 +536,7 @@ recuerdo-audit-svc/
 │   │   │   ├── health_handler.go
 │   │   │   └── routes.go            # chi ルーター登録
 │   │   ├── queue/
-│   │   │   └── sqs_consumer.go      # SQS ポーリング + メッセージハンドラ
+│   │   │   └── queue_consumer.go    # QueuePort subscribe + メッセージハンドラ
 │   │   └── scheduler/
 │   │       ├── archival_scheduler.go # Cron ジョブスケジューラ
 │   │       └── archival_worker.go    # ArchiveOldLogsUseCase 実行
@@ -541,11 +553,14 @@ recuerdo-audit-svc/
 │       │       └── 004_archival_jobs.sql
 │       ├── redis/
 │       │   └── query_cache.go
-│       ├── sqs/
-│       │   ├── consumer.go
+│       ├── queue/
+│       │   ├── redis_bullmq_adapter.go # Beta
+│       │   ├── asynq_adapter.go        # Beta (Go)
+│       │   ├── oci_queue_adapter.go    # 本番
 │       │   └── publisher.go
-│       ├── s3/
-│       │   └── export_adapter.go
+│       ├── objectstorage/
+│       │   ├── garage_adapter.go       # Beta: Garage（S3 互換）
+│       │   └── oci_adapter.go          # 本番: OCI Object Storage
 │       ├── gdpr/
 │       │   └── anonymizer.go        # SHA256ハッシュ化
 │       └── logging/
@@ -568,7 +583,7 @@ recuerdo-audit-svc/
 │   ├── integration/
 │   │   ├── MySQL_test.go         # testcontainers-go
 │   │   ├── redis_test.go
-│   │   └── sqs_test.go              # localstack
+│   │   └── queue_test.go            # Redis+BullMQ（testcontainers）/ OCI Queue（sandbox）
 │   └── fixtures/
 │       └── sample_events.json
 └── go.mod / go.sum
@@ -581,13 +596,13 @@ recuerdo-audit-svc/
 | レイヤー                     | テスト種別       | モック戦略                                                                                   |
 | ---------------------------- | ---------------- | -------------------------------------------------------------------------------------------- |
 | Domain (entity/valueobject)  | Unit test        | 外部依存なし。AuditEntry.Validate()・RetentionPolicy.CanArchive()等                          |
-| UseCase                      | Unit test        | mockeryで全ポート（AuditEntryRepository/SQSConsumerPort等）をモック                          |
+| UseCase                      | Unit test        | mockeryで全ポート（AuditEntryRepository/QueuePort 等）をモック                               |
 | Adapter (HTTP Handlers)      | Integration test | httptest.Server + モック Repository・UseCase。403/404/500等のエラー応答テスト                |
-| Adapter (SQS Consumer)       | Integration test | localstack SQS + テスト用メッセージ送信。メッセージ処理の idempotency テスト                 |
+| Adapter (QueuePort Consumer) | Integration test | Redis + BullMQ コンテナ（testcontainers）+ テスト用メッセージ送信。メッセージ処理の idempotency テスト。本番向けは OCI Queue sandbox を別途実行 |
 | Adapter (Archival Scheduler) | Integration test | clock モック（時刻操作）+ MySQL テスト                                                       |
 | Infrastructure (MySQL)       | Integration test | testcontainers-go で PG コンテナ起動。月次パーティションの切り替え、アーカイブクエリのテスト |
 | Infrastructure (Redis)       | Integration test | testcontainers-go で Redis コンテナ起動。キャッシュの TTL・削除テスト                        |
-| Infrastructure (S3)          | Integration test | localstack S3 + エクスポートファイル内容の検証                                               |
+| Infrastructure (ObjectStorage) | Integration test | Garage コンテナ（testcontainers）でエクスポート・アーカイブの検証。本番向けは OCI Object Storage sandbox で再検証 |
 | E2E                          | E2E test         | イベント受信 → ログ記録 → キャッシュ invalidate → クエリ実行の完全フロー                     |
 | GDPR compliance test         | 特別テスト       | ユーザー匿名化後、個人情報がハッシュに置き換わっているか確認。復号不可性の検証               |
 
@@ -718,9 +733,9 @@ func TestArchiveOldLogs_MigratesRecordToS3(t *testing.T) {
     assert.NoError(t, err)
 
     // アーカイブジョブ実行
-    s3Adapter := &MockS3Adapter{}
-    s3Adapter.On("ArchiveRecords", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
-        Return("s3://bucket/2026-04/archived.parquet", nil)
+    archiveAdapter := &MockObjectStorageExportAdapter{}  // Beta: Garage / 本番: OCI Object Storage
+    archiveAdapter.On("ArchiveRecords", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+        Return("object-storage://recuerdo-audit-exports/2026-04/archived.parquet", nil)
 
     job := &ArchivalJob{
         JobID:       uuid.New().String(),
@@ -728,12 +743,12 @@ func TestArchiveOldLogs_MigratesRecordToS3(t *testing.T) {
         ScheduledAt: time.Now(),
     }
     
-    uc := NewArchiveOldLogsUseCase(repo, s3Adapter, 730) // 2年
+    uc := NewArchiveOldLogsUseCase(repo, archiveAdapter, 730) // 2年
     output, err := uc.Execute(ctx, ArchiveOldLogsInput{BatchSize: 1000})
 
     assert.NoError(t, err)
     assert.Greater(t, output.ArchivedCount, 0)
-    s3Adapter.AssertCalled(t, "ArchiveRecords", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+    archiveAdapter.AssertCalled(t, "ArchiveRecords", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 }
 
 // GDPR Compliance Test
@@ -786,9 +801,9 @@ func TestGDPRAnonymization_ReplacesPersonalInfo(t *testing.T) {
 - ErrArchiveDaysExceedsRetention: ArchiveAfterDays > RetentionDays（アーカイブ期間が保管期間を超える）
 - ErrJobNotPending: ArchivalJob.MarkAsRunning() が PENDING 状態でないジョブに呼ばれた
 - ErrJobNotRunning: ArchivalJob.MarkAsCompleted() が RUNNING 状態でないジョブに呼ばれた
-- ErrDuplicateEntryID: SQS 再処理で同じ entry_id が既に DB に存在
+- ErrDuplicateEntryID: QueuePort の再配送で同じ entry_id が既に DB に存在
 - ErrQueryCacheInvalidate: Redis キャッシュ削除が失敗
-- ErrS3UploadFailed: S3 へのエクスポート・アーカイブがエラー
+- ErrObjectStorageUploadFailed: オブジェクトストレージ（Garage / OCI Object Storage）へのエクスポート・アーカイブがエラー
 - ErrGDPRAnonymizationNotFound: 指定された GDPRAnonymization が存在しない
 
 ### エラー → HTTPステータスマッピング
@@ -800,7 +815,7 @@ func TestGDPRAnonymization_ReplacesPersonalInfo(t *testing.T) {
 | ErrInvalidResourceType       | 400 Bad Request           | Invalid resource type. Allowed: USER, ORG, MEDIA, ALBUM, EVENT, MESSAGE, ROLE, INTEGRATION        |
 | ErrDuplicateEntryID          | 409 Conflict              | Audit entry with this ID already exists (idempotency check)                                       |
 | ErrQueryCacheInvalidate      | 500 Internal Server Error | Failed to refresh audit log cache. Please try again.                                              |
-| ErrS3UploadFailed            | 503 Service Unavailable   | Failed to export audit logs to S3. Please try again later.                                        |
+| ErrObjectStorageUploadFailed | 503 Service Unavailable   | Failed to export audit logs to object storage. Please try again later.                            |
 | ErrGDPRAnonymizationNotFound | 404 Not Found             | GDPR anonymization request not found                                                              |
 | ErrInvalidRetentionDays      | 400 Bad Request           | Retention days must be greater than 0                                                             |
 
@@ -810,13 +825,18 @@ func TestGDPRAnonymization_ReplacesPersonalInfo(t *testing.T) {
 
 | #   | 質問                                                                                                                             | ステータス | 決定                                                                                                                                               |
 | --- | -------------------------------------------------------------------------------------------------------------------------------- | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | 月次パーティション分割時、新しいパーティションは自動作成するか。パーティション管理の自動化レベルは？                             | Open       | 未決定。pg_partman拡張機能を使った自動パーティション作成を検討中。初期は手動で月初に作成する運用                                                   |
-| 2   | GDPRデータ削除時、ユーザーのactual nameをハッシュ化する際のsalt値は何か。salt固定値か、ユーザーごとのsaltか？                    | Open       | 未決定。固定saltを使用する場合、ハッシュ値から逆向きに個人情報を推測されるリスクがある。検討：ユーザーIDをsaltとして使用し、決定論的ハッシュを実現 |
-| 3   | 監査ログの検索API（QueryAuditLogs）は、完全な管理者専用アクセス（SUPERUSER）か、それとも一般ユーザーも自分のログだけ閲覧可能か？ | Open       | 未決定。段階的に、SUPERUSERのみアクセス可能で開始し、後にエンドユーザーの個人データ開示機能（GDPR Data Subject Access Request）を追加する予定      |
-| 4   | S3へのアーカイブ形式は何か（CSV/JSON/Parquet等）。クエリ性能とストレージコストのバランス                                         | Open       | 未決定。Parquet形式を推奨（圧縮率が高く、Athenaで高速クエリ可能）。初期はJSON形式で開始し、パフォーマンスに応じて Parquet へ移行                   |
-| 5   | RetentionPolicy の更新時、既存ログの保管期間は新ポリシーで遡及適用されるか、それとも記録時のポリシーを保持するか？               | Open       | 未決定。基本ルール：記録時のポリシーを保持（retroactive適用なし）。ポリシー変更は以降のログから適用される                                          |
-| 6   | SQS メッセージの visibility timeout と再処理の上限は？無限ループの防止を考慮する必要があるか                                     | Open       | 未決定。Visibility timeout: 300秒。失敗時は最大3回まで再処理後、DLQへ移動する。DLQメッセージは手動確認が必要                                       |
-| 7   | 複数の Archival Worker が稼働する場合、ジョブの競合（同じパーティションを同時にアーカイブ）を防ぐための排他制御は？              | Open       | 未決定。MySQL の ADVISORY LOCK または Kubernetes Job spec.parallelism=1 で制御。初期は Job を1つに限定                                             |
-| 8   | GDPRAnonymization が FAILED になった場合の手動リトライ流程は？管理者の介入が必要か、それとも自動リトライするか                   | Open       | 未決定。初期は失敗ログを記録し、管理者が手動でリトライ。後に非同期ワーカーによる自動リトライを追加可能                                             |
-| 9   | Redis query cache の invalidation 戦略は、全キーを一括削除か、それとも actor_id/resource_type 単位の選別削除か                   | Open       | 未決定。actor_id・resource_type 単位で削除（精密性）。キャッシュキー構造: `audit_query:{actor_id}:{resource_type}:{action_hash}`                   |
-| 10  | 外部への監査ログエクスポート（CSV/JSON）ファイルの有効期限は？S3 署名付きURLのTTLは？                                            | Open       | 未決定。署名付きURL有効期限：24時間。ダウンロード後、クライアント側で削除推奨。S3ライフサイクルルールで期限切れファイルは30日後に削除              |
+| 1   | 月次パーティション分割時、新しいパーティションは自動作成するか                                                                   | Resolved   | Beta / 本番とも MariaDB/MySQL の ALTER TABLE ... REORGANIZE を毎月初に実行する Cron Job を ArchivalJobScheduler と同梱。ドリフト発生時は Loki + Grafana でアラート |
+| 2   | GDPR 削除時のハッシュ salt 値は何か                                                                                              | Resolved   | `user_id` を salt として SHA256 ハッシュ（決定論的）。salt は MySQL/MariaDB 側に保存せず、入力値のみで再現可能に                                 |
+| 3   | 監査ログ検索 API はロール制御をどうするか                                                                                        | Resolved   | SUPERUSER / Org Admin / 本人のみ。一般ユーザーの GDPR DSAR は後続フェーズで拡張                                                                  |
+| 4   | アーカイブ形式は何か                                                                                                             | Resolved   | JSON Lines (NDJSON) + gzip 圧縮を採用（Garage / OCI Object Storage 互換、DuckDB などで後続クエリ可能）。Parquet は将来のオプション               |
+| 5   | RetentionPolicy の更新時、既存ログは遡及適用されるか                                                                             | Resolved   | 記録時のポリシーを保持（retroactive 適用なし）                                                                                                   |
+| 6   | QueuePort メッセージの visibility timeout と再処理の上限                                                                         | Resolved   | Visibility timeout 300秒。最大 3 回再処理後、DLQ（Redis list / OCI Queue DLQ）へ。DLQ は Loki + Grafana で監視                                   |
+| 7   | 複数 Archival Worker の排他制御                                                                                                  | Resolved   | MySQL `GET_LOCK()` / MariaDB 同等関数を使用した advisory lock。Kubernetes/Docker Job 側では `parallelism=1` で二重起動を防止                     |
+| 8   | GDPRAnonymization が FAILED 時の再実行フロー                                                                                     | Resolved   | 管理者 UI から手動再試行。併せて Loki + Grafana でアラート。非同期自動リトライは将来実装                                                         |
+| 9   | Redis query cache の invalidation 戦略                                                                                           | Resolved   | `audit_query:{actor_id}:{resource_type}:{action_hash}` のキー単位で削除                                                                         |
+| 10  | エクスポートファイルの有効期限・Presigned URL TTL                                                                                | Resolved   | Presigned URL の TTL: 24 時間。Garage / OCI Object Storage のライフサイクルルールで 30 日後に自動削除                                             |
+
+---
+
+最終更新: 2026-04-19 ポリシー適用
+

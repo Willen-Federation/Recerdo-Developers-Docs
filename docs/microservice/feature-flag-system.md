@@ -106,7 +106,7 @@ Key User Stories:
 
 **トリガー**: 
 - 手動: 管理者が API または Flipt UI から実行
-- 自動: CloudWatch アラームが ErrorRate 閾値超過を検知し、Lambda 経由で API 呼び出し
+- 自動: Prometheus Alertmanager（Beta/本番共通）が ErrorRate 閾値超過を検知し、QueuePort（Beta: Redis+BullMQ/asynq、本番: OCI Queue）経由で Flipt Admin API を呼び出す Worker がトリガーされる（AWS CloudWatch / SNS / Lambda は不使用、[基本的方針](../core/policy.md) 参照）
 
 **フロー**:
 1. flag_key と reason（MANUAL/AUTO_KILLSWITCH）を受け取る
@@ -124,7 +124,7 @@ Key User Stories:
 
 - **用途**: Feature Flag サーバー（評価エンジン・管理UI）
 - **コスト**: $0（OSS、自前運用）
-- **デプロイ**: Docker コンテナ、ECS Fargate または EC2
+- **デプロイ**: Docker コンテナ（Beta: XServer VPS 上の Docker Compose / k3s、本番: OCI Container Instances）
 - **Go SDK**: `go.flipt.io/flipt/sdk/go`
 - **特徴**:
   - gRPC + REST API
@@ -171,13 +171,15 @@ func IsAlbumV2Enabled(ctx context.Context, userID string) bool {
 }
 ```
 
-#### MySQL
+#### MySQL 8.0 / MariaDB 10.11
 
 - **用途**: FeatureFlag、FlagRule、FlagSegment、FlagAuditLog の永続化
+- **Beta**: XServer VPS 上の MySQL 8.0 / MariaDB 10.11（go-sql-driver/mysql、互換性を CI でテスト）
+- **本番**: OCI MySQL HeatWave
 - **テーブル**:
   - `feature_flags` (flag_key, name, description, enabled, fail_mode, created_at, updated_at)
-  - `flag_rules` (rule_id, flag_key, rule_type, rule_config JSONB, priority)
-  - `flag_segments` (segment_key, description, conditions JSONB)
+  - `flag_rules` (rule_id, flag_key, rule_type, rule_config JSON, priority)
+  - `flag_segments` (segment_key, description, conditions JSON)
   - `flag_audit_logs` (log_id, flag_key, changed_by, old_value, new_value, changed_at)
 
 #### Redis
@@ -213,18 +215,19 @@ func IsAlbumV2Enabled(ctx context.Context, userID string) bool {
 ### 5.2 エラーハンドリング（自動エラー率監視）
 
 ```
-CloudWatch Metrics (ErrorRate per flag_key)
+Prometheus Metrics (ErrorRate per flag_key) ← 各サービスが /metrics で公開
   ↓ 閾値超過（例: 5%超）
-  ↓ CloudWatch Alarm → SNS → Lambda
-  ↓ Lambda: POST /api/flags/{flag_key}/kill-switch {reason: AUTO_KILLSWITCH}
+  ↓ Prometheus Alertmanager（Beta/本番共通）
+  ↓ QueuePort publish -> recuerdo.flag.killswitch_requested（Beta: Redis+BullMQ/asynq、本番: OCI Queue Service）
+  ↓ KillSwitch Worker: POST /api/flags/{flag_key}/kill-switch {reason: AUTO_KILLSWITCH}
   ↓ FeatureFlag.enabled = false
-  ↓ KillSwitchTriggered イベント発行 → Notification Service → 管理者通知
+  ↓ KillSwitchTriggered イベント発行 → notifications-svc（FCM + Postfix メール）→ 管理者通知
 ```
 
 ### 5.3 Kill Switch（自動/手動）
 
 - **手動**: 管理者が API または Flipt ダッシュボードから即時実行
-- **自動**: CloudWatch + Lambda 連携で閾値超過を検知して自動発動
+- **自動**: Prometheus Alertmanager → QueuePort → KillSwitch Worker 連携で閾値超過を検知して自動発動（AWS CloudWatch / Lambda は不使用）
 - 発動後、フラグは手動で明示的に再有効化するまで OFF を維持（自動復旧しない）
 
 ### 5.4 IP制限（Firewall）
@@ -255,14 +258,18 @@ Flipt は他 OSS と比較して軽量（単一バイナリ）でありながら
 
 ## 7. デプロイ・インフラ
 
-- **Flipt サーバー**: Docker コンテナ、ECS Fargate（最小: 256MB / 0.25vCPU）
-- **永続化**: MySQL（Flipt のバックエンドとして設定）
+- **Flipt サーバー**: Docker コンテナ（Beta: XServer VPS の Docker Compose / k3s、本番: OCI Container Instances、最小 256MB / 0.25vCPU）
+- **永続化**: MySQL 8.0 / MariaDB 10.11（Beta XServer VPS）/ OCI MySQL HeatWave（本番）
 - **スケーリング**: Flipt は水平スケール対応（評価エンジンはステートレス）
-- **モニタリング**: Prometheus メトリクス（Flipt 内蔵）→ CloudWatch
+- **モニタリング**: Prometheus メトリクス（Flipt 内蔵）→ Prometheus + Loki + Grafana（AWS CloudWatch は不使用）
 
 ## 8. セキュリティ考慮事項
 
-- Flipt 管理 UI へのアクセスは VPC 内に限定（パブリック公開しない）
+- Flipt 管理 UI へのアクセスは内部ネットワーク内に限定（Beta: XServer VPS のプライベート IP、本番: OCI VCN 内の Private Subnet、いずれもパブリック公開しない）
 - API 経由の操作は Admin JWT（Permission Service発行）で認証
 - マイクロサービスからの評価リクエストは Service JWT で認証
 - フラグ変更は全て FlagAuditLog に記録（変更者・日時・内容）
+
+---
+
+最終更新: 2026-04-19 ポリシー適用

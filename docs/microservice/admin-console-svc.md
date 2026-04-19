@@ -314,3 +314,7 @@ gantt
 - [キュー抽象化設計](queue-abstraction.md)
 - [Feature Flag 管理システム](feature-flag-system.md)
 - [Audit Service](audit-svc.md)
+
+---
+
+最終更新: 2026-04-19 ポリシー適用

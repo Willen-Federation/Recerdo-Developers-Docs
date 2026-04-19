@@ -119,6 +119,7 @@ nav:
   - API ドキュメント:
     - api/index.md
     - 認証 (Auth): api/auth.md
+    - 権限 (Permission): api/permission.md
     - イベント (Events): api/events.md
     - アルバム (Album): api/album.md
     - ストレージ (Storage): api/storage.md
@@ -162,6 +163,7 @@ nav:
 
   - コアプラットフォーム:
     - core/index.md
+    - 基本的方針 (ポリシー): core/policy.md
     - デプロイメント戦略: core/deployment-strategy.md
     - 環境抽象化 & Feature Flag: core/environment-abstraction.md
     - コストパフォーマンス分析: core/cost-performance-analysis.md

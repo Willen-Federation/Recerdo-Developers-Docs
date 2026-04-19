@@ -39,14 +39,16 @@ Feature Flag System は Recerdo プラットフォーム全体の機能フラグ
 ```
 ┌────────────────────────────────────────────────────────────┐
 │  Frameworks & Drivers                                       │
-│  Gin HTTP, MySQL, Redis, Flipt gRPC/REST, CloudWatch  │
+│  Gin HTTP, MySQL (MariaDB互換), Redis, Flipt gRPC/REST,     │
+│  Prometheus + Grafana (Beta) / OCI Monitoring (Prod)        │
 └────────────────────────────────────────────────────────────┘
                           ▲
                           │ (依存)
 ┌────────────────────────────────────────────────────────────┐
 │  Interface Adapters                                         │
 │  HTTP Controllers (Admin API), FliptAdapter,               │
-│  MySQLRepository, RedisCache, CloudWatchAlarmConsumer   │
+│  MySQLRepository, RedisCache, MonitoringAlarmConsumer       │
+│  (Beta: Alertmanager webhook / Prod: OCI Monitoring → Functions) │
 └────────────────────────────────────────────────────────────┘
                           ▲
                           │ (依存)
@@ -173,7 +175,7 @@ const (
 | EvaluateFlag      | Microservice              | フラグをコンテキストに基づき評価 | HIGH   |
 | CreateFlag        | Admin                     | フラグ新規作成                   | HIGH   |
 | UpdateFlagStatus  | Admin                     | ON/OFF切り替え                   | HIGH   |
-| TriggerKillSwitch | Admin / CloudWatch Lambda | Kill Switch発動                  | HIGH   |
+| TriggerKillSwitch | Admin / Monitoring Alert (Beta: Alertmanager webhook / Prod: OCI Monitoring → OCI Functions) | Kill Switch発動 | HIGH   |
 | SetRolloutRule    | Admin                     | Percentage Rollout設定           | HIGH   |
 | SetIPRestriction  | Admin                     | IP制限設定                       | MEDIUM |
 | GetFlagStatus     | Admin                     | フラグ詳細・評価統計取得         | MEDIUM |
@@ -446,8 +448,17 @@ func TestEvaluateFlag_PercentageRollout_Deterministic(t *testing.T) {
 
 ## 7. デプロイ・運用
 
-- **Flipt サーバー**: ECS Fargate（256MB / 0.25vCPU、最小構成）
-- **データベース**: MySQL（他マイクロサービスと共有クラスター）
-- **キャッシュ**: Redis（既存クラスター利用）
-- **モニタリング**: Flipt 内蔵 Prometheus → CloudWatch
-- **Kill Switch 自動化**: CloudWatch Alarm → Lambda → `POST /api/flags/{flag_key}/kill-switch`
+- **Flipt サーバー**:
+  - Beta: XServer VPS 上の docker-compose（256MB / 0.25vCPU、最小構成）
+  - Prod: OCI Container Instances / OKE（同等構成）
+- **データベース**: MySQL 8.x (Beta) / OCI MySQL HeatWave (Prod)（他マイクロサービスと共有クラスター、MariaDB 10.6+ 互換スキーマ）
+- **キャッシュ**: Redis (Beta: 自前) / OCI Cache with Redis (Prod)（既存クラスター利用）
+- **モニタリング**: Flipt 内蔵 Prometheus エンドポイント → Beta は Prometheus + Grafana、Prod は OCI Monitoring + Grafana
+- **Kill Switch 自動化**:
+  - Beta: Prometheus Alertmanager → Webhook → `POST /api/flags/{flag_key}/kill-switch`
+  - Prod: OCI Monitoring Alarm → OCI Notifications → OCI Functions → `POST /api/flags/{flag_key}/kill-switch`
+  - AWS CloudWatch / Lambda / SNS は使用しない
+
+---
+
+最終更新: 2026-04-19 ポリシー適用

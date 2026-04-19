@@ -100,3 +100,20 @@
 ### DELETE `/api/timeline/{timeline_item_id}`
 
 タイムラインアイテムを非表示にします。
+
+---
+
+## ファンアウト基盤
+
+Timeline Service は他サービス（Events / Album / Storage / Reactions）からのイベントをキュー経由で受信し、フィードに集約します。
+
+| 環境 | キュー | 永続化 |
+| --- | --- | --- |
+| Beta | Redis + BullMQ / asynq | MySQL（MariaDB互換） |
+| 本番 | OCI Queue | OCI MySQL HeatWave |
+
+キャッシュは Redis（Beta: 自前 / 本番: OCI Cache with Redis）を利用します。AWS サービスへの依存はありません（認証の Cognito を除く）。
+
+---
+
+最終更新: 2026-04-19 ポリシー適用
