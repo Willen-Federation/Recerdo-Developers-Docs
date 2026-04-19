@@ -214,13 +214,21 @@ services = [
     ('admin-console-svc', 8009, './services/admin-console-svc'),
 ]
 
+common_services = {'feature-flag-svc'}
 profile_services = {
     'full': None,  # 全サービス
-    'core': {'auth-svc', 'feature-flag-svc', 'audit-svc'},
-    'media': {'storage-svc', 'album-svc', 'feature-flag-svc'},
-    'notify': {'notifications-svc', 'feature-flag-svc'},
-    'admin': {'admin-console-svc', 'feature-flag-svc', 'auth-svc'},
+    'core': common_services | {'auth-svc', 'audit-svc'},
+    'media': common_services | {'storage-svc', 'album-svc'},
+    'notify': common_services | {'notifications-svc'},
+    'admin': common_services | {'admin-console-svc', 'auth-svc'},
 }
+
+def service_deps(name):
+    if name == 'auth-svc':
+        return ['feature-flag-svc']
+    if name != 'feature-flag-svc':
+        return ['auth-svc']
+    return []
 
 for name, port, path in services:
     if profile_services.get(profile) and name not in profile_services[profile]:
@@ -238,20 +246,11 @@ for name, port, path in services:
                 trigger=[path + '/cmd', path + '/internal']),
         ],
     )
+    deps = service_deps(name)
     if target == 'compose':
-        deps = []
-        if name == 'auth-svc':
-            deps = ['feature-flag-svc']
-        elif name != 'feature-flag-svc':
-            deps = ['auth-svc']
         dc_resource(name, labels=['recerdo'], resource_deps=deps)
     else:
         k8s_yaml('./deploy/k3s/' + name + '.yaml')
-        deps = []
-        if name == 'auth-svc':
-            deps = ['feature-flag-svc']
-        elif name != 'feature-flag-svc':
-            deps = ['auth-svc']
         k8s_resource(name, port_forwards=[port], labels=['recerdo'], resource_deps=deps)
 ```
 
