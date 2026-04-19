@@ -39,6 +39,14 @@
 
     [:octicons-arrow-right-24: 機能仕様を見る](features/index.md)
 
+-   :material-rocket-launch: **ローカル開発 (Tilt)**
+
+    ---
+
+    `tilt up` で Recerdo 全体を起動。兄弟 repo clone 手順・Docker 要件・Live Update 対応状況。
+
+    [:octicons-arrow-right-24: Tilt でシステム起動](core/local-dev.md)
+
 </div>
 
 ---
