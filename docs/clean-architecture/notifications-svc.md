@@ -552,6 +552,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"net/smtp"
+	"strings"
 )
 
 type PostfixSMTPAdapter struct {
@@ -570,7 +571,8 @@ func NewPostfixSMTPAdapter(cfg SMTPConfig) *PostfixSMTPAdapter {
 }
 
 func (a *PostfixSMTPAdapter) SendEmail(ctx context.Context, notif *domain.Notification, toAddress string) error {
-	_ = ctx // net/smtp は context 非対応
+	_ = ctx
+
 	addr := fmt.Sprintf("%s:%d", a.host, a.port)
 	msg := []byte(
 		"From: " + a.from + "\r\n" +
@@ -579,9 +581,56 @@ func (a *PostfixSMTPAdapter) SendEmail(ctx context.Context, notif *domain.Notifi
 		"Content-Type: text/plain; charset=UTF-8\r\n\r\n" +
 		notif.Body + "\r\n",
 	)
+
 	c, err := smtp.Dial(addr)
 	if err != nil {
 		return err
+	}
+	defer c.Close()
+
+	ok, _ := c.Extension("STARTTLS")
+	if !ok {
+		return fmt.Errorf("smtp server %s does not support STARTTLS", addr)
+	}
+
+	tlsConfig := &tls.Config{ServerName: a.host}
+	if err := c.StartTLS(tlsConfig); err != nil {
+		return err
+	}
+
+	if a.username != "" || a.password != "" {
+		auth := smtp.PlainAuth("", a.username, a.password, a.host)
+		if ok, _ := c.Extension("AUTH"); ok {
+			if err := c.Auth(auth); err != nil {
+				return err
+			}
+		}
+	}
+
+	if err := c.Mail(a.from); err != nil {
+		return err
+	}
+	if err := c.Rcpt(toAddress); err != nil {
+		return err
+	}
+
+	w, err := c.Data()
+	if err != nil {
+		return err
+	}
+	if _, err := w.Write(msg); err != nil {
+		w.Close()
+		return err
+	}
+	if err := w.Close(); err != nil {
+		return err
+	}
+
+	if err := c.Quit(); err != nil && !strings.Contains(err.Error(), "use of closed network connection") {
+		return err
+	}
+
+	return nil
 	}
 	defer c.Close()
 
