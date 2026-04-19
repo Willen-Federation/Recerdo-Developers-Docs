@@ -8,7 +8,7 @@
 
 ### 目的
 
-Recuerdoアプリケーションのプッシュ通知・アプリ内通知・メール通知を一元管理するマイクロサービス。Messaging Service、Events Service、Album Service からのイベントを **QueuePort（Beta: Redis+BullMQ/asynq、本番: OCI Queue Service）** 経由で受け取り、ユーザーの通知設定に基づいて **FCM（Firebase Cloud Messaging）を主軸としたプッシュ通知** を配信する。メール通知は **CoreServerV2 上の Postfix + Dovecot + Rspamd（SPF / DKIM / DMARC 構成済み）** を `MailPort`（実装 `PostfixSMTPAdapter`）経由で利用し、セキュリティ要件・FCMトークン未登録ユーザー・法的通知など特定条件下でのみ送信する（詳細は [メール通知条件](#メール通知条件) を参照）。**AWS SES / SQS / SNS / CloudWatch / Lambda / ECS / ElastiCache / Secrets Manager は使用しない。利用する AWS サービスは Cognito のみ**（[基本的方針](../core/policy.md) 参照）。デバイストークン管理、通知履歴追跡、配信状態管理、重複排除をサポートする。
+Recuerdoアプリケーションのプッシュ通知・アプリ内通知・メール通知を一元管理するマイクロサービス。Messaging Service、Events Service、Album Service からのイベントを **QueuePort（Beta: Redis+BullMQ/asynq、本番: OCI Queue Service）** 経由で受け取り、ユーザーの通知設定に基づいて **FCM（Firebase Cloud Messaging）を主軸としたプッシュ通知** を配信する。メール通知は **CoreServerV2 上の Postfix + Dovecot + Rspamd（SPF / DKIM / DMARC 構成済み）** を `MailPort`（実装 `PostfixSMTPAdapter`）経由で利用し、セキュリティ要件・FCMトークン未登録ユーザー・法的通知など特定条件下でのみ送信する（詳細は [メール通知条件](#mail-notification-conditions) を参照）。**AWS SES / SQS / SNS / CloudWatch / Lambda / ECS / ElastiCache / Secrets Manager は使用しない。利用する AWS サービスは Cognito のみ**（[基本的方針](../core/policy.md) 参照）。デバイストークン管理、通知履歴追跡、配信状態管理、重複排除をサポートする。
 
 ### ビジネスコンテキスト
 
@@ -144,7 +144,7 @@ Key User Stories:
   - 配信成功率の自動トラッキング
 
 #### Postfix + Dovecot + Rspamd（CoreServerV2 上で運用）
-- **用途**: メール通知（条件付き利用 — 後述の [メール通知条件](#メール通知条件) を参照）
+- **用途**: メール通知（条件付き利用 — 後述の [メール通知条件](#mail-notification-conditions) を参照）
 - **コスト**: CoreServerV2 CORE+X（6GB）契約に含まれる（追加コスト $0）
 - **実装**: `MailPort` → `PostfixSMTPAdapter`（Go: `net/smtp` + `mail` パッケージ、TLS STARTTLS 必須）
 - **構成**:
@@ -160,7 +160,7 @@ Key User Stories:
   - バウンス処理: Rspamd + Dovecot LMTP が受信した DSN を `BounceHandler` ワーカーが QueuePort 経由で消費し、`DeviceTokenRevoked` / `EmailInvalidated` をパブリッシュ
   - 配送状態は Postfix `maillog` → Loki へ転送し Grafana で可視化
 
-#### メール通知条件 { #メール通知条件 }
+#### メール通知条件 {#mail-notification-conditions}
 
 FCM を主軸とした設計とし、メール（Postfix）送信は以下の条件に該当する場合にのみ利用する。
 
@@ -259,7 +259,7 @@ FCM を主軸とした設計とし、メール（Postfix）送信は以下の条
 
 ### 推奨構成: FCM-primary（FCM 中心、Postfix メール条件付き）
 
-通常の活動通知は FCM で完結し、メール送信は [メール通知条件](#メール通知条件) に合致する場合のみ Postfix 経由で使用する。
+通常の活動通知は FCM で完結し、メール送信は [メール通知条件](#mail-notification-conditions) に合致する場合のみ Postfix 経由で使用する。
 
 **月間 100K ユーザー、1 ユーザーあたり平均 10 通知/月の場合**:
 - **プッシュ通知**: FCM 無料 = **$0**
@@ -309,6 +309,21 @@ OneSignal 等（月額 $99+）と比較すると **年間 $1,188 以上のコス
 | 2026-04-19 | PR #6 Copilot Autofix（コミット `56a90bc`） | Postfix SMTP アダプタで STARTTLS が明示的に要求されていない         | `PostfixSMTPAdapter.SendEmail` で STARTTLS 広告確認 → TLS1.2+ 昇格 → AUTH 拡張確認 を必須化。重複コードを整理。                       |
 | 2026-04-19 | 横断レビュー（コミット `464267` マージ後）  | メール通知条件が MS / CA で分散し、改訂時の差異が発生しやすい       | MS 側は `{ #メール通知条件 }` / CA 側は `{ #postfixsmtp-利用条件 }` の **明示 ID** を見出しに付与して安定化。両方から policy.md §2.3 / §8 を参照する構成に統一。 |
 | 2026-04-19 | 追加設計プラン反復                          | 冪等性 / Outbox / Saga / Circuit Breaker / SLO が文書ごとにバラバラ | 本 §9 の横断標準表を新設し、policy.md §8 と同期。                                                                                     |
+
+## 9. 追加設計プラン（大規模類似サービス参照）
+
+| 観点 | 参照モデル | Recuerdo 反映方針 |
+| --- | --- | --- |
+| 通知チャネル優先順位 | Instagram/Meta 系の Push-first 運用 | FCM を既定経路に固定し、メールは 5 条件のみ許可 |
+| 通知疲労の抑制 | Slack の quiet hours / preference 運用 | `NotificationPreference` と quiet hours を全通知種別で必須評価 |
+| 配信失敗ハンドリング | 大規模メッセージング基盤の DLQ 運用 | QueuePort の再試行 3 回 + DLQ 監査を標準化 |
+| 監査/証跡 | GitHub 等の法的通知ログ管理 | 法的・セキュリティ通知は Email 送信証跡を保持 |
+
+### 課題・他者レビュー反映
+
+- **課題**: SMTP 実装例で STARTTLS が暗黙化されると平文送信リスクが残る。
+- **レビュー反映**: STARTTLS を必須要件として明記し、非対応サーバーでは送信失敗とする。
+- **継続レビュー項目**: MailPort 実装サンプルと運用手順の整合を四半期ごとにレビューする。
 
 ---
 
