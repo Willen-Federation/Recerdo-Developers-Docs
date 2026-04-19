@@ -46,7 +46,7 @@
 | Feature Flag           | Flipt（OCI VPS 上）                                                                                                               |
 | オブザーバビリティ     | OCI Logging / OCI Monitoring 併用、Loki 併走可                                                                                    |
 
-### 1.3 AWS 利用ポリシー
+### 1.3 AWS 利用ポリシー { #13-aws-利用ポリシー }
 
 - **利用可能**: Cognito（User Pool・Hosted UI・JWKS）のみ。
 - **利用しない**（過去資料に登場する場合は差し替え対象）:

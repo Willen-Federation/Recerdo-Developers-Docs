@@ -81,7 +81,7 @@ admin-*    → feature-flag-svc     (Flag 変更・Kill Switch)
 
 新規 PR / 設計変更のレビュー時に、以下を**必ず確認**する。
 
-1. 禁止キーワード（`S3` / `SES` / `SNS` / `SQS` / `DynamoDB` / `RDS` / `Aurora` / `CloudFront` / `Lambda` / `MinIO` / `ElastiCache`）が**採用文脈**で登場していないか。
+1. 禁止キーワードは [`policy.md` §1.3 AWS 利用ポリシー](../core/policy.md#13-aws-利用ポリシー) の禁止一覧を正として確認し、その語が**採用文脈**で登場していないか。
 2. Write API に `Idempotency-Key` の受理が記述されているか（または既存の共通ミドルウェアを継承しているか）。
 3. ドメインイベント発行が **Outbox 経由** になっているか（QueuePort 直叩きが残っていないか）。
 4. 外部呼び出しに Circuit Breaker / Retry 方針が明記されているか。

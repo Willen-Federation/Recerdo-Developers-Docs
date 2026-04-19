@@ -293,10 +293,10 @@ OneSignal 等（月額 $99+）と比較すると **年間 $1,188 以上のコス
 
 | 標準                                  | 本サービスでの反映                                                                                                                                                                                                                              |
 | ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Idempotency Key**                   | `POST /api/notifications/register-device`、`PUT /api/notifications/preferences/*`、`POST /api/notifications/{id}/retry` に `Idempotency-Key` を必須化（24h 保持）。QueuePort Consumer 側でも `notification_id` を冪等キーとして重複配信を防止。 |
+| **Idempotency Key**                   | `POST /api/notifications/register-device`、`PUT /api/notifications/preferences/*`、`POST /api/notifications/{id}/retry` は `Idempotency-Key` を受理（推奨、24h 保持）。キー未指定時も通常処理するが警告ログを記録し、GA で必須化予定（[policy.md §8.3](../core/policy.md#8-大規模類似サービス参照反復版)）。QueuePort Consumer 側でも `notification_id` を冪等キーとして重複配信を防止。 |
 | **Transactional Outbox**              | `NotificationSent` / `NotificationFailed` / `DeviceTokenRevoked` を `outbox_events` に書き込み、Publisher が QueuePort に転送。FCM 呼び出しの成否は **Outbox へ記録した後** に確定させる（DB と副作用の整合）。                                 |
 | **Saga (Choreography)**               | `memory.shared` / `comment.added` 等を受信 → 配信タスク実行 → `notification.sent` を Outbox へ。配信失敗時は `notification.failed` を Outbox 経由で発行し、管理コンソールの運用タスクに連携。                                                   |
-| **Circuit Breaker + Backoff**         | FCM API、Postfix SMTP への呼び出しに `gobreaker` を適用。失敗率 50% / 20 件で Open、30 秒で Half-Open。再送は base 200ms × factor 2（max 3 回）。                                                                                               |
+| **Circuit Breaker + Backoff**         | FCM API、Postfix SMTP への呼び出しに `gobreaker` を適用。失敗率 50% / 20 件で Open、30 秒で Half-Open。再送は base 200ms × factor 2 に jitter（±25%）を付与（max 3 回）。                                                                       |
 | **OpenTelemetry + W3C Trace Context** | HTTP / QueuePort の入出境界で `traceparent` を伝播。`notification_id` と `trace_id` の相関をログで保持（本文は出さない）。                                                                                                                      |
 | **SLI/SLO**                           | `NotificationCreated → FCM Sent` 95%tile < 60s、`PostfixSMTP 送信` 95%tile < 10s、配信成功率 >= 99.0% を SLO として監視。エラーバジェット枯渇時は `circuit.breaker.fcm.disabled=true` Kill Switch で一時停止可能。                              |
 | **レート制限**                        | デバイスあたり FCM 送信は 1 分間に 10 件まで（優先度 HIGH は例外）。ユーザーごとの通知合計は 1 日 200 件まで、それ以上は IN_APP に退避。                                                                                                        |
@@ -307,7 +307,7 @@ OneSignal 等（月額 $99+）と比較すると **年間 $1,188 以上のコス
 | 日付       | 出所                                        | 指摘                                                                | 反映                                                                                                                                  |
 | ---------- | ------------------------------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
 | 2026-04-19 | PR #6 Copilot Autofix（コミット `56a90bc`） | Postfix SMTP アダプタで STARTTLS が明示的に要求されていない         | `PostfixSMTPAdapter.SendEmail` で STARTTLS 広告確認 → TLS1.2+ 昇格 → AUTH 拡張確認 を必須化。重複コードを整理。                       |
-| 2026-04-19 | 横断レビュー（コミット `464267` マージ後）  | メール通知条件が MS / CA で分散し、改訂時の差異が発生しやすい       | `#メール通知条件` アンカーを MS 側で、`#postfixsmtp-利用条件` を CA 側で安定化し、両方から policy.md §2.3 / §8 を参照する構成に統一。 |
+| 2026-04-19 | 横断レビュー（コミット `464267` マージ後）  | メール通知条件が MS / CA で分散し、改訂時の差異が発生しやすい       | MS 側は `{ #メール通知条件 }` / CA 側は `{ #postfixsmtp-利用条件 }` の **明示 ID** を見出しに付与して安定化。両方から policy.md §2.3 / §8 を参照する構成に統一。 |
 | 2026-04-19 | 追加設計プラン反復                          | 冪等性 / Outbox / Saga / Circuit Breaker / SLO が文書ごとにバラバラ | 本 §9 の横断標準表を新設し、policy.md §8 と同期。                                                                                     |
 
 ---
