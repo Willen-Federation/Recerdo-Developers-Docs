@@ -214,8 +214,16 @@ services = [
     ('admin-console-svc', 8009, './services/admin-console-svc'),
 ]
 
+profile_services = {
+    'full': None,  # 全サービス
+    'core': {'auth-svc', 'feature-flag-svc', 'audit-svc'},
+    'media': {'storage-svc', 'album-svc', 'feature-flag-svc'},
+    'notify': {'notifications-svc', 'feature-flag-svc'},
+    'admin': {'admin-console-svc', 'feature-flag-svc', 'auth-svc'},
+}
+
 for name, port, path in services:
-    if profile == 'core' and name not in ('auth-svc', 'feature-flag-svc', 'audit-svc'):
+    if profile_services.get(profile) and name not in profile_services[profile]:
         continue
     docker_build_with_restart(
         ref='recerdo/' + name + ':dev',
