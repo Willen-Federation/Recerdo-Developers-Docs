@@ -1,3 +1,5 @@
+[![Netlify Status](https://api.netlify.com/api/v1/badges/27ce33ac-e298-4d62-a01b-d10319734e49/deploy-status)](https://app.netlify.com/projects/recerdo-developers-docs/deploys)
+
 # Netlify デプロイ手順
 
 Recerdo Developer Docs を Netlify に公開するための手順書です。
