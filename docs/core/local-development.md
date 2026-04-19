@@ -277,7 +277,9 @@ for name, port, path, deps in services:
 
 ```bash
 # macOS (Homebrew)
-brew install colima docker docker-compose docker-buildx tilt-dev/tap/tilt sops age
+brew install \
+  colima docker docker-compose docker-buildx \
+  tilt-dev/tap/tilt sops age
 
 # Linux は distro のパッケージマネージャで colima を導入
 
