@@ -196,7 +196,7 @@ flowchart TB
 load('ext://restart_process', 'docker_build_with_restart')
 
 target = os.environ.get('TILT_TARGET', 'compose')
-profile = os.environ.get('TILT_PROFILE', 'full')  # full(既定: フィルタなし) | core | media | notify | admin
+profile = os.environ.get('TILT_PROFILE', 'full')  # full | core | media | notify | admin
 
 # 1) 共通ミドルウェアは compose から読み込み
 docker_compose('./deploy/dev/docker-compose.infra.yml')
@@ -214,6 +214,7 @@ services = [
     ('admin-console-svc', 8009, './services/admin-console-svc'),
 ]
 
+# full はフィルタしないため profile_services には定義しない（既定で全サービス起動）
 common_services = {'feature-flag-svc'}
 profile_services = {
     'core': common_services | {'auth-svc', 'audit-svc'},
@@ -223,6 +224,7 @@ profile_services = {
 }
 
 def service_deps(name):
+    # 起動順序: feature-flag-svc → auth-svc → その他
     if name == 'feature-flag-svc':
         return []
     if name == 'auth-svc':
