@@ -1,0 +1,124 @@
+name: Wiki Auto Sync
+
+on:
+  schedule:
+    # 毎朝 9:00 JST (= 00:00 UTC)
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+    inputs:
+      since_hours:
+        description: '何時間前からの活動を集約するか (既定: 24)'
+        required: false
+        default: '24'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wiki-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    name: Sync Recerdo activity to Wiki
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install jq (確認)
+        run: jq --version
+
+      - name: Resolve date/time vars
+        id: vars
+        run: |
+          SINCE_HOURS="${{ github.event.inputs.since_hours || '24' }}"
+          {
+            echo "date_jst=$(TZ=Asia/Tokyo date +%Y-%m-%d)"
+            echo "time_jst=$(TZ=Asia/Tokyo date +'%Y-%m-%d %H:%M JST')"
+            echo "since_utc=$(date -u -d "${SINCE_HOURS} hours ago" +%Y-%m-%dT%H:%M:%SZ)"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Generate activity digest
+        env:
+          GH_TOKEN: ${{ secrets.WIKI_SYNC_TOKEN }}
+          SINCE_UTC: ${{ steps.vars.outputs.since_utc }}
+          ORG: Willen-Federation
+        run: |
+          if [ -z "${GH_TOKEN}" ]; then
+            echo "::error::secret WIKI_SYNC_TOKEN が未設定です。repo スコープ付き PAT を登録してください。"
+            exit 1
+          fi
+          chmod +x scripts/wiki-sync/generate-digest.sh
+          bash scripts/wiki-sync/generate-digest.sh > /tmp/digest-body.md
+          echo "---- digest preview ----"
+          head -n 40 /tmp/digest-body.md
+
+      - name: Clone wiki
+        id: clone_wiki
+        env:
+          GH_TOKEN: ${{ secrets.WIKI_SYNC_TOKEN }}
+        run: |
+          set +e
+          git clone "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.wiki.git" wiki 2>clone.err
+          rc=$?
+          set -e
+          if [ $rc -ne 0 ]; then
+            cat clone.err
+            echo "::warning::Wiki リポジトリがクローンできません。https://github.com/${{ github.repository }}/wiki から最初のページ (例: Home) を一度手動作成してから workflow_dispatch で再実行してください。"
+            echo "wiki_ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "wiki_ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Update wiki pages
+        if: steps.clone_wiki.outputs.wiki_ready == 'true'
+        env:
+          DATE_JST: ${{ steps.vars.outputs.date_jst }}
+          TIME_JST: ${{ steps.vars.outputs.time_jst }}
+        run: |
+          chmod +x scripts/wiki-sync/update-wiki.sh
+          SCRIPT="$(pwd)/scripts/wiki-sync/update-wiki.sh"
+          cd wiki
+          bash "$SCRIPT" /tmp/digest-body.md
+
+      - name: Commit & push to wiki
+        if: steps.clone_wiki.outputs.wiki_ready == 'true'
+        env:
+          DATE_JST: ${{ steps.vars.outputs.date_jst }}
+        run: |
+          cd wiki
+          if git diff --quiet && [ -z "$(git status --porcelain)" ]; then
+            echo "No changes to Wiki."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "chore(wiki): auto-sync ${DATE_JST}"
+          git push
+
+      - name: Summary
+        if: always()
+        env:
+          WIKI_READY: ${{ steps.clone_wiki.outputs.wiki_ready }}
+          DATE_JST: ${{ steps.vars.outputs.date_jst }}
+        run: |
+          {
+            echo "# Wiki Auto Sync — ${DATE_JST}"
+            echo ""
+            if [ "$WIKI_READY" = "true" ]; then
+              echo "✅ Wiki 更新成功: https://github.com/${{ github.repository }}/wiki"
+            else
+              echo "⚠️ Wiki が未初期化のためスキップ。手動で最初のページを作成してください:"
+              echo "https://github.com/${{ github.repository }}/wiki/_new"
+            fi
+            echo ""
+            echo "## ダイジェスト抜粋"
+            echo ""
+            echo '```markdown'
+            head -n 60 /tmp/digest-body.md 2>/dev/null || echo "(digest 未生成)"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
