@@ -68,7 +68,7 @@ jobs:
           rc=$?
           set -e
           if [ $rc -ne 0 ]; then
-            sed -E 's/authorization:[[:space:]]*bearer[[:space:]]+[^[:space:]]+/authorization: bearer ***REDACTED***/ig' clone.err >&2 || true
+            sed -E 's/(authorization:[[:space:]]*bearer[[:space:]]+)[^[:space:]]+/\1***REDACTED***/ig' clone.err >&2 || true
             echo "::warning::Wiki リポジトリがクローンできません。https://github.com/${{ github.repository }}/wiki から最初のページ (例: Home) を一度手動作成してから workflow_dispatch で再実行してください。"
             echo "wiki_ready=false" >> "$GITHUB_OUTPUT"
           else

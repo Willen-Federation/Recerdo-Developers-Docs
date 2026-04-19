@@ -69,8 +69,8 @@ while IFS= read -r line || [ -n "$line" ]; do
 
   # マージ済みPR
   # merged_at >= SINCE_UTC のPR
-  since_epoch=$(date -u -d "$SINCE_UTC" +%s 2>/dev/null || echo 0)
-  if [ "$since_epoch" -le 0 ]; then
+  since_epoch=$(date -u -d "$SINCE_UTC" +%s 2>/dev/null || echo -1)
+  if [ "$since_epoch" -lt 0 ]; then
     echo "WARN: SINCE_UTC の解析に失敗しました。PR の早期打ち切りを無効化します: ${SINCE_UTC}" >&2
   fi
   prs_json='[]'
@@ -86,14 +86,14 @@ while IFS= read -r line || [ -n "$line" ]; do
     prs_json=$(jq -cn --argjson current "$prs_json" --argjson page "$pr_page_json" '$current + $page')
     pr_oldest_updated=$(echo "$pr_page_json" | jq -r '.[-1].updated_at // empty' 2>/dev/null || true)
     if [ -n "$pr_oldest_updated" ]; then
-      pr_oldest_updated_epoch=$(date -u -d "$pr_oldest_updated" +%s 2>/dev/null || echo 0)
-      if [ "$pr_oldest_updated_epoch" -le 0 ]; then
+      pr_oldest_updated_epoch=$(date -u -d "$pr_oldest_updated" +%s 2>/dev/null || echo -1)
+      if [ "$pr_oldest_updated_epoch" -lt 0 ]; then
         echo "WARN: PR updated_at の解析に失敗しました: ${ORG}/${repo} page=${pr_page} value=${pr_oldest_updated}" >&2
       fi
     else
-      pr_oldest_updated_epoch=0
+      pr_oldest_updated_epoch=-1
     fi
-    if [ "$since_epoch" -gt 0 ] && [ "$pr_oldest_updated_epoch" -gt 0 ] && [ "$pr_oldest_updated_epoch" -lt "$since_epoch" ]; then
+    if [ "$since_epoch" -ge 0 ] && [ "$pr_oldest_updated_epoch" -ge 0 ] && [ "$pr_oldest_updated_epoch" -lt "$since_epoch" ]; then
       break
     fi
     pr_page=$((pr_page + 1))
