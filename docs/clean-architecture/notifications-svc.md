@@ -562,8 +562,8 @@ type PostfixSMTPAdapter struct {
 	host     string // e.g. "smtp.example.internal"
 	port     int    // 587 (submission, STARTTLS)
 	username string
-	password string
-	from     string // e.g. "no-reply@recerdo.example"
+	password string // SMTP auth token (password field)
+	from     string // e.g. "no-reply@recuerdo.example"
 }
 
 func NewPostfixSMTPAdapter(cfg SMTPConfig) (*PostfixSMTPAdapter, error) {
@@ -574,7 +574,7 @@ func NewPostfixSMTPAdapter(cfg SMTPConfig) (*PostfixSMTPAdapter, error) {
 	case cfg.Username != "" && cfg.Password != "":
 		// 通常の AUTH 有りモード
 	default:
-		return nil, errors.New("SMTP username and password must be set together (or both empty)")
+		return nil, errors.New("SMTP username and token(password) must be set together (or both empty)")
 	}
 	if _, err := mail.ParseAddress(cfg.From); err != nil {
 		return nil, fmt.Errorf("invalid SMTP From address: %w", err)
@@ -618,7 +618,10 @@ func (a *PostfixSMTPAdapter) SendEmail(ctx context.Context, notif *domain.Notifi
 		return err
 	}
 
-	if a.username != "" || a.password != "" {
+	hasUsername := a.username != ""
+	hasPassword := a.password != ""
+	switch {
+	case hasUsername && hasPassword:
 		auth := smtp.PlainAuth("", a.username, a.password, a.host)
 		ok, _ := c.Extension("AUTH")
 		if !ok {
@@ -627,6 +630,10 @@ func (a *PostfixSMTPAdapter) SendEmail(ctx context.Context, notif *domain.Notifi
 		if err := c.Auth(auth); err != nil {
 			return err
 		}
+	case !hasUsername && !hasPassword:
+		// AUTH 無しモード
+	default:
+		return errors.New("smtp auth misconfigured: username and token(password) must be set together")
 	}
 
 	if err := c.Mail(a.from); err != nil {
@@ -670,7 +677,7 @@ func (a *PostfixSMTPAdapter) SendEmail(ctx context.Context, notif *domain.Notifi
 >
 > - **ヘッダインジェクション対策**: `mail.ParseAddress` で宛先を検証し、ヘッダ値に混入した CR/LF は `sanitizeHeaderValue` で即エラーにする（BCC 追加・追加ヘッダ注入を防止）。
 > - **非 ASCII 件名の RFC 2047 準拠**: `mime.QEncoding.Encode("utf-8", ...)` で `=?utf-8?Q?...?=` 形式にエンコードする。
-> - **AUTH の設定整合性**: `username` / `password` は**両方揃っている場合のみ** AUTH を試行。片方だけ設定された誤設定は `NewPostfixSMTPAdapter` の時点でエラーにする。
+> - **AUTH の設定整合性**: `username` / `token(password)` は**両方揃っている場合のみ** AUTH を試行。片方だけ設定された誤設定は `NewPostfixSMTPAdapter`（起動時）または `SendEmail`（送信時）でエラーにする。
 > - **本文のサニタイズ**: `notif.Body` は平文本文なので CR/LF 自体は許可するが、HTML メールを追加する場合は `html/template` の自動エスケープを利用し、さらに `Content-Type` を `text/html` に切替える。
 
 - SPF / DKIM / DMARC は DNS 側で設定（Postfix + Rspamd で署名）
