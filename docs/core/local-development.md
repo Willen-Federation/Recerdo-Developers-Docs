@@ -13,7 +13,7 @@
     本ページは **設計・方針** ドキュメントです。実際に `tilt up` でシステムを起動する **手順** は [ローカル開発 (Tilt 起動手順)](local-dev.md) を参照してください。両者は役割分担しており、Bootstrap 時は `local-dev.md` → 設計意図を深掘りするときに本ページを参照する導線を想定しています。
 
 !!! note "パス表記について"
-    本ページ内の `deploy/` や `Makefile` は、**アプリ本体リポジトリ（`Willen-Federation/Recerdo`）側の想定構成例**です。本ドキュメントリポジトリ（`Recerdo-Developers-Docs`）には含まれません。
+    本ページ内の `deploy/` や `Makefile` は、**アプリ本体リポジトリ（`Willen-Federation/Recerdo`）側の実際の構成**を指します。本ドキュメントリポジトリ（`Recerdo-Developers-Docs`）には含まれません。
 
 ---
 
@@ -224,11 +224,11 @@ profile_services = {
 }
 
 def service_deps(name):
+    if name == 'feature-flag-svc':
+        return []
     if name == 'auth-svc':
         return ['feature-flag-svc']
-    if name != 'feature-flag-svc':
-        return ['auth-svc']
-    return []
+    return ['auth-svc']
 
 for name, port, path in services:
     if profile_services.get(profile) and name not in profile_services[profile]:
