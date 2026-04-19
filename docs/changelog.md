@@ -5,6 +5,27 @@ Recerdo Developer Docs の変更履歴です。
 
 ---
 
+## v0.6.3 — 2026-04-20 (ローカル開発環境ドキュメント追加)
+
+### 追加
+
+- **[`core/local-development.md`](core/local-development.md)**: Tilt + Colima によるローカル開発環境整備ドキュメントを新設。
+  - 9 マイクロサービス + Beta 相当ミドルウェア（MySQL / MariaDB / Redis / Garage / Flipt / Postfix + Dovecot + Rspamd / MailHog / cognito-local / FCM エミュレータ / Loki / Grafana）を単一 `Tiltfile` で宣言的起動。
+  - `live_update` による編集 → 反映の高速化、`TILT_PROFILE` によるサービス絞り込み（full / core / media / notify / admin）。
+  - コンテナランタイムを **Colima（OSS）第一推奨** に設定し、Docker Desktop 依存を排除。`DOCKER_HOST` / `docker context` で Docker Desktop / OrbStack / Rancher Desktop への切替も可能。
+  - 将来性として **k3s 併設モード（`TILT_TARGET=k3s`）** を同梱し、OCI Container Instances → OKE 移行リハーサルを開発者マシン上で実行可能に。
+  - ローカル既定の環境変数カタログ、Flipt シード定義、MariaDB 互換性テストの並走を規定。
+- **`mkdocs.yml`**: コアプラットフォームのナビゲーションに「ローカル開発環境 (Tilt + Colima)」を追加。
+- **`core/index.md`**: ドキュメント一覧に `local-development.md` を追加。
+
+### 検証
+
+- `mkdocs build --strict` でビルド成功を確認する運用（CI と同一コマンド）。
+- 禁止キーワード（`S3` / `SES` / `SNS` / `SQS` / `DynamoDB` / `RDS` / `Aurora` / `CloudFront` / `Lambda` / `MinIO` / `ElastiCache`）が採用文脈で登場していないことを確認。
+- AWS 依存は **Cognito JWKS のモック（cognito-local）のみ** で、ポリシー §1.3 に準拠。
+
+---
+
 ## v0.6.2 — 2026-04-19 (追加設計プラン反映・レビュー指摘反映)
 
 ### 変更

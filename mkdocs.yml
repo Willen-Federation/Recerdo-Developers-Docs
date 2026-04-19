@@ -166,6 +166,7 @@ nav:
     - 基本的方針 (ポリシー): core/policy.md
     - デプロイメント戦略: core/deployment-strategy.md
     - 環境抽象化 & Feature Flag: core/environment-abstraction.md
+    - ローカル開発環境 (Tilt + Colima): core/local-development.md
     - コストパフォーマンス分析: core/cost-performance-analysis.md
     - PoC/Beta スコープ定義: core/poc-beta-scope.md
     - サーバーキャパシティ計画: core/server-capacity-planning.md
