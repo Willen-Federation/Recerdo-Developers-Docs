@@ -5,6 +5,34 @@ Recerdo Developer Docs の変更履歴です。
 
 ---
 
+## v0.7.2 — 2026-04-20 (Issue 分解スプリント完了)
+
+### 追加
+
+- **`core/sprints/2026-04-20-issue-decomposition.md`**: バックエンド 13 リポジトリへの Issue 分解スプリント報告を新規追加。作成方針・Milestone 割当基準・リポジトリ別 Epic URL 一覧を記録。
+
+### 変更
+
+- **`microservice/events-svc.md`**: §5 ディレクトリ構造ツリーの AWS 命名違反を修正 (policy §1.3)。
+  - `queue/sqs_publisher.go` → `queue/queue_publisher.go`
+  - `sqs_consumer/` → `queue_consumer/`
+  - `notification/notification_sqs_adapter.go` → `notification/notification_queue_adapter.go`
+
+### GitHub Issues 作成実績 (2026-04-20)
+
+バックエンド 13 リポジトリに **315 Issue** を作成。
+
+| カテゴリ | 件数 |
+|----------|------|
+| Epic (M1/M2/M3) | 38 |
+| Feature (ユースケース) | 164 |
+| Cross-cutting | 88 |
+| Test / Deploy | 25 |
+
+詳細: [スプリント報告](core/sprints/2026-04-20-issue-decomposition.md) / [Tracker #21](https://github.com/Willen-Federation/Recerdo-Developers-Docs/issues/21)
+
+---
+
 ## v0.7.1 — 2026-04-20 (ローカル開発環境のアーキテクチャ/方針ドキュメント追加)
 
 ### 追加

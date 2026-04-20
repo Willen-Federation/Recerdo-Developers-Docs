@@ -742,8 +742,8 @@ recerdo-events/
 │   │   │   ├── permission_adapter.go
 │   │   │   └── auth_adapter.go
 │   │   ├── queue/
-│   │   │   └── sqs_publisher.go
-│   │   └── sqs_consumer/
+│   │   │   └── queue_publisher.go
+│   │   └── queue_consumer/
 │   │       └── invitation_expiration_consumer.go
 │   └── infrastructure/
 │       ├── MySQL/
@@ -757,7 +757,7 @@ recerdo-events/
 │       ├── codegen/
 │       │   └── event_code_generator.go
 │       ├── notification/
-│       │   └── notification_sqs_adapter.go
+│       │   └── notification_queue_adapter.go
 │       └── config/
 │           └── config.go
 ├── pkg/
