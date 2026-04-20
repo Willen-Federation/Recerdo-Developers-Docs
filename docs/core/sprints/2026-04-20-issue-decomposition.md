@@ -34,8 +34,8 @@
 - Context / User Story / Acceptance Criteria / 技術要件 / Test Plan / Feature Flag / Dependencies / References / DoD
 
 ### 横断標準の必須 AC
-- **Write API**: `Idempotency-Key` ヘッダ受理 (policy §8.3)
-- **ドメインイベント発行**: Transactional Outbox 経由 (policy §8.4)
+- **Write API**: `Idempotency-Key` ヘッダ受理 (policy §8.4)
+- **ドメインイベント発行**: Transactional Outbox 経由 (policy §8.5)
 - **PII 処理**: `security:review` ラベル + PII ログ禁止 AC
 - **Feature Flag**: `<svc>.<feature>.enabled` 形式、default OFF
 
@@ -79,7 +79,7 @@
 ### 検出事項 #1: events-svc.md ディレクトリツリーの命名規約違反
 
 **ファイル**: `docs/microservice/events-svc.md` §5 ディレクトリ構造  
-**内容**: ポリシー §1.3 (AWS 命名禁止) に違反するファイル名が DD に記載されていた
+**内容**: ポリシー §4.2（禁止アダプタ名: `SQSAdapter` / `S3Adapter` 等）に対応する AWS 由来の命名を含むファイル名が DD に記載されていた
 
 | 変更前 | 変更後 |
 |--------|--------|

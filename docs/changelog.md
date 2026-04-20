@@ -13,7 +13,7 @@ Recerdo Developer Docs の変更履歴です。
 
 ### 変更
 
-- **`microservice/events-svc.md`**: §5 ディレクトリ構造ツリーの AWS 命名違反を修正 (policy §1.3)。
+- **`microservice/events-svc.md`**: §5 ディレクトリ構造ツリーの AWS 命名違反を修正 (policy §4.2)。
   - `queue/sqs_publisher.go` → `queue/queue_publisher.go`
   - `sqs_consumer/` → `queue_consumer/`
   - `notification/notification_sqs_adapter.go` → `notification/notification_queue_adapter.go`
