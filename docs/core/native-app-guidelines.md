@@ -42,7 +42,7 @@
 | iOS（App Store / TestFlight） | Apple App Store | **必須**（Apple が強制） | **Apple Developer Program**（¥14,800 / 年、**個人**枠）。これ以外の選択肢は無い。 |
 | iOS（社内配布・検証） | 開発機での直接実行 | Free provisioning で可 | **Xcode の Free Provisioning**（無料 Apple ID、7 日有効 / 3 アプリ制限）を Beta 内部検証でのみ使用。 |
 | macOS（DMG / zip 直接配布） | 自サイト配信 | 任意（Gatekeeper 警告は出る） | **ad-hoc 署名（`codesign --sign -`）** + 初回のみ「右クリック → 開く」でユーザー許可。公証は **行わない**。 |
-| macOS（Homebrew Cask） | `brew install --cask` | 任意 | Cask 側でハッシュ検証されるため **未公証でも問題なく配布可能**。 |
+| macOS（Homebrew Cask） | `brew install --cask` | 任意 | Cask の Formula でハッシュ検証は行われるが、**ダウンロード時に quarantine 属性が付与される**ため、未署名 / 未公証アプリは初回起動時に Gatekeeper 警告が出ることがある。Cask 側で `--no-quarantine` や `zap` 設定を併用する、もしくは後述 §2.4 と同じ「右クリック → 開く」導線を案内する。 |
 | Android（Google Play） | Play Console | **必須**（自己署名） | **自己署名（keytool + apksigner）**。証明書費用 ¥0。Google Play 登録料 **$25（一度きり）** のみ。 |
 | Android（野良 APK / F-Droid） | 自サイト or F-Droid | 自己署名で可 | 上記と同じ自己署名鍵。F-Droid は GPG 署名も併用（無料）。 |
 | Windows（EXE / MSI） | 自サイト配信 | 任意（SmartScreen 警告は出る） | **未署名配布** + インストール時の「詳細情報 → 実行」で回避、または **SignPath.io Foundation** 経由で OSS 署名を無料取得、または **Azure Trusted Signing**（$9.99 / 月、2026 時点）で安価代替。 |
@@ -53,16 +53,25 @@
 
 - iOS を App Store 配信する以上、**Apple Developer Program（個人 ¥14,800 / 年）は唯一避けられない固定費**。
 - macOS のみの配布であれば、Apple Developer Program に加入せず **ad-hoc 署名のみで配布可能**（2.4 を参照）。
-- Beta フェーズでは **個人枠のみ**とし、組織枠（Organization、$299 / 年）への移行は GA 直前に検討する。
+- Apple Developer Program の **個人枠 / 組織枠（Organization）は同額（¥14,800 / 年、US $99 / year）**。組織枠は D-U-N-S 番号の取得と法人審査が追加で必要になる。別枠の **Apple Developer Enterprise Program（$299 / 年）** はストア外配布専用で、Recerdo では **採用しない**（2.7 を参照）。
 - Apple Developer Program から発行される開発者証明書・Distribution 証明書・APNs 証明書は **本プログラム範囲内で無料** のため、「コード署名証明書を利用しない」方針とは矛盾しない（外部 CA から買わないという意味）。
 
 ### 2.4 macOS 未公証配布のユーザー導線
 
-macOS を Apple Notarization なしで配布する場合、初回起動時に Gatekeeper によりブロックされる。以下の導線を README / ダウンロードページに明記する:
+macOS を Apple Notarization なしで配布する場合、初回起動時に Gatekeeper によりブロックされる。**「右クリック → 開く」を第一推奨**とし、以下の導線を README / ダウンロードページに明記する:
 
-1. `.app` をアプリケーションフォルダへ移動。
-2. **Finder で右クリック → 開く**（or `xattr -d com.apple.quarantine /Applications/Recerdo.app`）。
+1. `.app` を `/Applications` へ移動。
+2. **Finder で `.app` を右クリック → 「開く」** を選択（推奨）。
 3. 「開発元が未確認」ダイアログで「開く」を選択。
+
+どうしても CLI で解除する必要がある場合のみ、`xattr` でバンドル配下を **再帰的に** 外す。`/Applications` 配下は書き込み権限が必要なため `sudo` が必要になる場合がある:
+
+```bash
+sudo xattr -dr com.apple.quarantine /Applications/Recerdo.app
+```
+
+- `-r`（再帰）を付けないと `.app` バンドル内部のファイルに quarantine が残り続け、再ブロックされる場合がある。
+- 一般ユーザーには CLI 手順を強制せず、**UI の「右クリック → 開く」を第一選択として案内する**。
 
 これにより **Apple Developer Program 非加入 + 公証なし** でも macOS アプリの配布が可能。Beta 期間の macOS クライアント配布は原則この方式を採る。
 
@@ -82,7 +91,7 @@ macOS を Apple Notarization なしで配布する場合、初回起動時に Ga
 
 - **DigiCert / Sectigo / GlobalSign / SSL.com の商用コード署名証明書**: 年額 1〜5 万円規模。費用対効果が悪いため **購入しない**。
 - **Windows の自己署名 CA を配布先 PC にインストールさせる方式**: ユーザー操作負荷が高く、かつセキュリティリスクがある。
-- **iOS の Enterprise Program（$299 / 年）**: ストア外配布のみ可能でありガイドライン違反リスクが高い。Recerdo では採用しない。
+- **Apple Developer Enterprise Program（$299 / 年）**: 通常の Developer Program（¥14,800 / 年）とは別枠で、ストア外配布専用。ガイドライン違反リスクが高いため Recerdo では採用しない。
 
 ---
 
@@ -109,7 +118,7 @@ macOS を Apple Notarization なしで配布する場合、初回起動時に Ga
 - [ ] `recerdo-android-dart` を Flutter プロジェクトとして説明している箇所
 - [ ] macOS 向け Electron ビルドの記述
 - [ ] 有償のコード署名証明書（DigiCert / Sectigo 等）を前提としたコスト試算
-- [ ] Apple Enterprise Program ($299/年) 利用の前提
+- [ ] Apple Developer Enterprise Program ($299/年) 利用の前提
 - [ ] iOS / Android のクロスプラットフォーム共通コード（KMM / RN）前提
 
 上記に該当する記述を見つけ次第、[changelog.md](../changelog.md) にも差分を記録する。
@@ -135,4 +144,4 @@ macOS を Apple Notarization なしで配布する場合、初回起動時に Ga
 
 ---
 
-最終更新: 2026-04-20 ネイティブアプリ方針とコード署名代替案を明文化
+最終更新: 2026-04-20 ネイティブアプリ方針とコード署名代替案を明文化（Copilot レビュー反映）
