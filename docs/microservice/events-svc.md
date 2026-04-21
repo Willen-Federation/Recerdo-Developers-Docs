@@ -1,4 +1,4 @@
-# Events Module (recuerdo-events-svc)
+# Events Module (recerdo-events)
 
 **作成者**: Akira · **作成日**: 2026-04-13 · **ステータス**: Draft
 
@@ -512,10 +512,10 @@ type EventPublisherPort interface {
 
 | ポートインターフェース | アダプタクラス                | 外部システム                                 |
 | ---------------------- | ----------------------------- | -------------------------------------------- |
-| PermissionPort         | PermissionServiceGRPCAdapter  | recuerdo-permission-svc (gRPC)               |
+| PermissionPort         | PermissionServiceGRPCAdapter  | recerdo-permission (gRPC)               |
 | EventCodeGeneratorPort | UUIDSlugCodeGenerator         | 内部実装（タイトル + ランダム部で生成）      |
-| NotificationPort       | NotificationServiceQueueAdapter | QueuePort（Beta: Redis+BullMQ/asynq、本番: OCI Queue）→ recuerdo-notifications-svc |
-| AuthServicePort        | AuthServiceGRPCAdapter        | recuerdo-auth-svc (gRPC)                     |
+| NotificationPort       | NotificationServiceQueueAdapter | QueuePort（Beta: Redis+BullMQ/asynq、本番: OCI Queue）→ recerdo-notifications |
+| AuthServicePort        | AuthServiceGRPCAdapter        | recerdo-auth (gRPC)                     |
 | EventPublisherPort     | QueueEventPublisher           | QueuePort トピック `recuerdo.events.*`（Beta: Redis+BullMQ/asynq、本番: OCI Queue Service） |
 
 ## 5. インフラストラクチャ層
@@ -683,7 +683,7 @@ fx.Provide(
 ### ディレクトリツリー
 
 ```
-recuerdo-events-svc/
+recerdo-events/
 ├── cmd/server/
 │   └── main.go
 ├── internal/
@@ -742,8 +742,8 @@ recuerdo-events-svc/
 │   │   │   ├── permission_adapter.go
 │   │   │   └── auth_adapter.go
 │   │   ├── queue/
-│   │   │   └── sqs_publisher.go
-│   │   └── sqs_consumer/
+│   │   │   └── queue_publisher.go
+│   │   └── queue_consumer/
 │   │       └── invitation_expiration_consumer.go
 │   └── infrastructure/
 │       ├── MySQL/
@@ -757,7 +757,7 @@ recuerdo-events-svc/
 │       ├── codegen/
 │       │   └── event_code_generator.go
 │       ├── notification/
-│       │   └── notification_sqs_adapter.go
+│       │   └── notification_queue_adapter.go
 │       └── config/
 │           └── config.go
 ├── pkg/

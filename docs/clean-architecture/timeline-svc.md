@@ -2,7 +2,7 @@
 
 | 項目                      | 値                                       |
 | ------------------------- | ---------------------------------------- |
-| **モジュール/サービス名** | Timeline Service (recuerdo-timeline-svc) |
+| **モジュール/サービス名** | Timeline Service (recerdo-timeline) |
 | **作成者**                | Akira                                    |
 | **作成日**                | 2026-04-13                               |
 | **ステータス**            | ドラフト                                 |
@@ -24,7 +24,9 @@ Timeline Service はRecuerdo プラットフォームにおいて、すべての
 ### 1.3 アーキテクチャ原則
 - **イベント駆動型**：QueuePort メッセージをリスニング、TimelineItem を非同期作成
 - **アクセス制御**：可視性ルール（PRIVATE/FRIENDS/PUBLIC）をドメイン層で保護
-- **スケーラビリティ**：月次パーティショニング（MySQL）+ Redis ソートセット FIFOキャッシュ
+- **スケーラビリティとハイブリッド Fan-out**：月次パーティショニング（MySQL）+ Redis ソートセット FIFOキャッシュ。Fan-out on Write を既定とするが、フォロワー数 > 500 の場合は Fan-out on Read に動的フォールバックする。
+- **縮退運転 (Graceful Degradation)**：高負荷やSLOエラーバジェット枯渇時は、読み取りをキャッシュのフォールバックに切り替え、重い書き込み処理は Flipt フィーチャーフラグを用いて Fan-out on Read 化・または遅延・停止させる。
+- **冪等性とTransactional Outbox**：全書き込み系API及びイベントリスニングで `Idempotency-Key` を用いた重複排除（Redisに24h保持）を行う。また、永続化と他サービスへのイベント通知における不整合を避けるため、一貫して Transactional Outbox を使用する。
 - **イミュータビリティ**：TimelineItem は削除されない、表示/非表示フラグで制御
 
 ---
@@ -865,7 +867,7 @@ func registerHandlers(
 ## 7. ディレクトリ構成
 
 ```
-recuerdo-timeline-svc/
+recerdo-timeline/
 ├── cmd/
 │   ├── main.go                 # アプリケーション起動
 │   └── consumer/

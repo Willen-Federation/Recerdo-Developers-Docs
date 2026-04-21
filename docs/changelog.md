@@ -5,6 +5,85 @@ Recerdo Developer Docs の変更履歴です。
 
 ---
 
+## v0.7.2 — 2026-04-20 (Issue 分解スプリント完了)
+
+### 追加
+
+- **`core/sprints/2026-04-20-issue-decomposition.md`**: バックエンド 13 リポジトリへの Issue 分解スプリント報告を新規追加。作成方針・Milestone 割当基準・リポジトリ別 Epic URL 一覧を記録。
+
+### 変更
+
+- **`microservice/events-svc.md`**: §5 ディレクトリ構造ツリーの AWS 命名違反を修正 (policy §4.2)。
+  - `queue/sqs_publisher.go` → `queue/queue_publisher.go`
+  - `sqs_consumer/` → `queue_consumer/`
+  - `notification/notification_sqs_adapter.go` → `notification/notification_queue_adapter.go`
+
+### GitHub Issues 作成実績 (2026-04-20)
+
+バックエンド 13 リポジトリに **315 Issue** を作成。
+
+| カテゴリ | 件数 |
+|----------|------|
+| Epic (M1/M2/M3) | 38 |
+| Feature (ユースケース) | 164 |
+| Cross-cutting | 88 |
+| Test / Deploy | 25 |
+
+詳細: [スプリント報告](core/sprints/2026-04-20-issue-decomposition.md) / [Tracker #21](https://github.com/Willen-Federation/Recerdo-Developers-Docs/issues/21)
+
+---
+
+## v0.7.1 — 2026-04-20 (ローカル開発環境のアーキテクチャ/方針ドキュメント追加)
+
+### 追加
+
+- **[`core/local-development.md`](core/local-development.md)**: Tilt + Colima によるローカル開発環境の **設計・方針ドキュメント** を新設。既存の [`core/local-dev.md`](core/local-dev.md)（操作ガイド）と補完関係を明確化。
+  - 9 マイクロサービス + Beta 相当ミドルウェア（MySQL / MariaDB / Redis / Garage / Flipt / Postfix + Dovecot + Rspamd / MailHog / cognito-local / FCM エミュレータ / Loki / Grafana）のトポロジと責務を定義。
+  - `live_update` による編集 → 反映の高速化、`TILT_PROFILE` によるサービス絞り込み（full / core / media / notify / admin）の設計指針。
+  - コンテナランタイムを **Colima（OSS）第一推奨** に位置付け、`DOCKER_HOST` / `docker context` で Docker Desktop / OrbStack / Rancher Desktop への切替も可能なランタイム可搬性を定義。
+  - 将来性として **k3s 併設モード（`TILT_TARGET=k3s`）** を同梱し、OCI Container Instances → OKE 移行リハーサルを開発者マシン上で実行可能に。
+  - ローカル既定の環境変数カタログ、Flipt シード定義、MariaDB 互換性テストの並走、ポリシー §1.3 / §4.1 との対応を明文化。
+- **`core/local-dev.md`**: 姉妹ドキュメント [`core/local-development.md`](core/local-development.md) への誘導リンクを冒頭に追加（操作ガイド ↔ 設計ドキュメントの役割分担）。
+- **`mkdocs.yml`**: コアプラットフォームのナビゲーションに「ローカル開発環境 (Tilt + Colima, 設計)」を追加し、既存の「ローカル開発 (Tilt で起動)」と並置。
+- **`core/index.md`**: ドキュメント一覧に `local-development.md` を追加。
+
+### 検証
+
+- `mkdocs build --strict` でビルド成功を確認。
+- [基本的方針（Policy）§1.3](core/policy.md#13-aws-利用ポリシー) の禁止アダプタ／サービス名が採用文脈で登場していないことを確認（将来の grep lint で本 changelog 行がヒットしないよう、具体語の列挙はポリシー側に集約）。
+- AWS 依存は **Cognito JWKS のモック（cognito-local）のみ** で、ポリシー §1.3 に準拠。
+
+---
+
+## v0.7.0 — 2026-04-19 (追加設計プラン・大規模類似サービス徹底反映)
+
+### 変更・追加
+
+- **`core/policy.md`**: コミット `464267137d7c63f159d732d47d55a8de16d7093f` のレビュー指摘（STARTTLS 必須、旧システム記述削除、横断一貫性不足）をもとに、§8「追加設計プラン」を大幅に拡充。Instagram, Twitter, Stripe などの大規模システムモデルを使った横断要件（Push-first厳格化, DLQ & Circuit Breaker, 縮退運転/Graceful Degradation、SLO）を明確化。
+- **`microservice/timeline-svc.md` & `clean-architecture/timeline-svc.md`**: Fan-out on Write と フォロワー数500超での Fan-out on Read を切り替える構成（Hybrid Fan-out）および、Redisキャッシュのフォールバック・Heavy APIの Feature Flag 制御による**縮退パス（Graceful Degradation）** を追記。
+- **全Write API (Outbox適用)**: Transactional Outbox + 冪等性（Idempotency-Key 24時間保持）を全サービス横断の責務として各設計書に再適用し、Sagaの信頼性を向上。
+
+---
+
+## v0.6.3 — 2026-04-19 (追加設計プラン再整理・Iteration-02)
+
+### 変更
+
+- **`core/policy.md`**: §8 に Iteration-02（コミット `464267` コメント起点）の反復表を追加し、Push-first/STARTTLS/Outbox/DLQ/縮退/SLO の整理と anchor `#8-大規模類似サービス参照反復版` を明示。
+- **`core/index.md`**: 反復ログの要約を追記し、横断ドキュメント更新フローで最新反復表を参照するように修正。
+- **`microservice/index.md`**: 追加設計プラン表を Iteration-02 に合わせて拡充（通知/Outbox・DLQ/フィード縮退/SLO）し、横断レビュー観点に縮退・DLQ 閾値を追加。
+- **`clean-architecture/index.md`**: 追加設計プラン表を Iteration-02 に合わせ、レビュー入力列を追加。SLO/縮退/STARTTLS の責務を CA 層に再配置。
+
+### 追加
+
+- コミット `464267137d7c63f159d732d47d55a8de16d7093f` のレビューコメント（STARTTLS 必須、旧システム記述削除、横断一貫性不足）を入力とした反復計画を `policy.md` に記録し、MS/CA index へ再配布。
+
+### 検証
+
+- `mkdocs build --strict`
+
+---
+
 ## v0.6.2 — 2026-04-19 (追加設計プラン反映・レビュー指摘反映)
 
 ### 変更

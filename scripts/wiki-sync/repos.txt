@@ -1,0 +1,22 @@
+# Recerdo ファミリーの全リポジトリ (一行一リポ、# 始まりはコメント)
+# Wiki 自動同期の対象リポ。追加・削除したらこのファイルを更新してください。
+
+Recerdo-Developers-Docs
+recerdo-notifications
+recerdo-audit
+recerdo-feature-flag
+recerdo-infra
+recerdo-desktop-electron
+recerdo-android-dart
+recerdo-spa-webclient
+recerdo-admin-system
+recerdo-core
+recerdo-storage
+recerdo-event
+recerdo-timeline
+recerdo-album
+recerdo-permission-management
+Recuerdo_Backend
+AdminPanel_Recerdo
+recerdo-admin-cli
+Recerdo-iOS

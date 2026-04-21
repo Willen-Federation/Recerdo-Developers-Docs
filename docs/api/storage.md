@@ -1,6 +1,6 @@
 # Storage API
 
-`recuerdo-storage-svc` が提供するメディアアップロード・配信APIです。
+`recerdo-storage` が提供するメディアアップロード・配信APIです。
 
 ## パイプライン概要
 

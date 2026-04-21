@@ -1,4 +1,4 @@
-# Audit Service (recuerdo-audit-svc)
+# Audit Service (recerdo-audit)
 
 **作成者**: Akira · **作成日**: 2026-04-13 · **ステータス**: Draft
 
@@ -318,7 +318,7 @@ type GDPRAnonymizationPort interface {
 | ---------------------- | ------------------ | -------------------------------------- |
 | QueuePort              | **Beta:** `RedisBullMQAdapter` / `AsynqAdapter` / **本番:** `OCIQueueAdapter` | Redis 7.x + BullMQ/asynq / OCI Queue Service（Topic: `recuerdo.audit.events`） |
 | EventPublisherPort     | `QueueEventPublisher`（QueuePort 委譲） | Topic: `recuerdo.audit.entry_recorded`                   |
-| ObjectStorageExportPort | **Beta:** `GarageArchivalAdapter` / **本番:** `OCIArchivalAdapter` | Garage（S3 互換 OSS, CoreServerV2 CORE+X）/ OCI Object Storage。バケット: `recuerdo-audit-exports` |
+| ObjectStorageExportPort | **Beta:** `GarageArchivalAdapter` / **本番:** `OCIArchivalAdapter` | Garage（S3 互換 OSS, CoreServerV2 CORE+X）/ OCI Object Storage。バケット: `recerdo-audit-exports` |
 | GDPRAnonymizationPort  | `SHA256Anonymizer` | 標準ライブラリ crypto/sha256                                               |
 
 ## 5. インフラストラクチャ層
@@ -495,7 +495,7 @@ fx.Invoke(
 ### ディレクトリツリー
 
 ```
-recuerdo-audit-svc/
+recerdo-audit/
 ├── cmd/
 │   ├── server/main.go              # HTTP サーバー起動
 │   └── archival-worker/main.go     # アーカイブワーカー（独立実行可能）
@@ -735,7 +735,7 @@ func TestArchiveOldLogs_MigratesRecordToS3(t *testing.T) {
     // アーカイブジョブ実行
     archiveAdapter := &MockObjectStorageExportAdapter{}  // Beta: Garage / 本番: OCI Object Storage
     archiveAdapter.On("ArchiveRecords", mock.Anything, mock.Anything, mock.Anything, mock.Anything).
-        Return("object-storage://recuerdo-audit-exports/2026-04/archived.parquet", nil)
+        Return("object-storage://recerdo-audit-exports/2026-04/archived.parquet", nil)
 
     job := &ArchivalJob{
         JobID:       uuid.New().String(),

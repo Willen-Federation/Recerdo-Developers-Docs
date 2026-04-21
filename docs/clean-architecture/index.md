@@ -61,16 +61,16 @@ flowchart LR
 
 | サービス                                      | 設計書                     | セクション数 |
 | --------------------------------------------- | -------------------------- | ------------ |
-| [API Gateway](api-gateway.md)                 | recuerdo-api-gateway       | 14           |
-| [Authentication Service](auth-svc.md)         | recuerdo-auth-svc          | 14           |
-| [Audit Service](audit-svc.md)                 | recuerdo-audit-svc         | 14           |
-| [Album Service](album-svc.md)                 | recuerdo-album-svc         | 14           |
-| [Events Service](events-svc.md)               | recuerdo-events-svc        | 14           |
-| [Timeline Service](timeline-svc.md)           | recuerdo-timeline-svc      | 14           |
-| [Storage Service](storage-svc.md)             | recuerdo-storage-svc       | 14           |
-| [Notification Service](notifications-svc.md)  | recuerdo-notifications-svc | 14           |
-| [Feature Flag System](feature-flag-system.md) | recuerdo-feature-flag-svc  | 14           |
-| [Admin Console Service](admin-console-svc.md) | recuerdo-admin-console-svc | 10           |
+| [API Gateway](api-gateway.md)                 | recerdo-api-gateway       | 14           |
+| [Authentication Service](auth-svc.md)         | recerdo-auth          | 14           |
+| [Audit Service](audit-svc.md)                 | recerdo-audit         | 14           |
+| [Album Service](album-svc.md)                 | recerdo-album         | 14           |
+| [Events Service](events-svc.md)               | recerdo-events        | 14           |
+| [Timeline Service](timeline-svc.md)           | recerdo-timeline      | 14           |
+| [Storage Service](storage-svc.md)             | recerdo-storage       | 14           |
+| [Notification Service](notifications-svc.md)  | recerdo-notifications | 14           |
+| [Feature Flag System](feature-flag-system.md) | recerdo-feature-flag  | 14           |
+| [Admin Console Service](admin-console-svc.md) | recerdo-admin-console | 10           |
 
 ## 設計書の構成（14セクション）
 
@@ -114,18 +114,20 @@ AWS の利用は **Cognito のみ**（SES/SQS/SNS/S3/DynamoDB/RDS/EC2/EKS/Elasti
 
 ## 追加設計プラン反映（設計・分析・考察の反復）
 
-| 設計観点 | 参照モデル | Recuerdo クリーンアーキテクチャでの反映 |
-| --- | --- | --- |
-| 通知チャネル戦略 | 大規模 SNS の Push-first モデル | Notification UseCase で Push-first / Email-conditional を明文化 |
-| 障害復旧戦略 | 大規模イベント基盤の DLQ 運用 | QueuePort + Retry + DLQ を全サービス共通の Port 契約として再確認 |
-| セキュリティレビュー | SMTP/TLS 運用ベストプラクティス | MailPort 実装例を STARTTLS 必須・非対応時失敗に統一 |
-| 変更容易性 | 契約固定・実装差し替えモデル | Port 契約を固定し、Beta/Prod の差分を Adapter に限定 |
+[基本的方針（Policy）§8](../core/policy.md#8-大規模類似サービス参照反復版) の Iteration-02（コミット `464267` コメント起点）をクリーンアーキテクチャ層に再配布する。
+
+| 設計観点 | 参照モデル | クリーンアーキテクチャでの反映 | レビュー/課題入力（464267 コメント） |
+| --- | --- | --- | --- |
+| 通知チャネル戦略 | Push-first（LINE / WhatsApp） | Notification UseCase を Push-first 既定にし、`MailPort` 実装を STARTTLS 非対応時はエラー返却に統一。メール送信は 5 条件に限定する。 | STARTTLS 必須を明示し、旧システム記述を除去 |
+| Outbox + DLQ | Shopify / Stripe の冪等 + Outbox | `EventPublisherPort` は Outbox 経由が必須。Port 契約に DLQ 監査フックを含め、再試行回数・可視性タイムアウトを共通化。 | 横断一貫性不足を指摘された箇所を CA レイヤに再配置 |
+| Fan-out 縮退 | Instagram / Twitter Fan-out ハイブリッド | Timeline UseCase を Fan-out on Write 既定、フォロワー > 500 で Read-time 切替。縮退は Feature Flag 経由で制御。 | スパイク時縮退経路が明文化されていない点を是正 |
+| SLO / Error Budget | Google SRE | UseCase 責務に P95/P99 を記述し、Adapter 層で RED メトリクスを emit。エラーバジェット枯渇時の Kill Switch を `FeatureFlagPort` で切替。 | SLO 記述漏れを防ぐレビュー観点を追加 |
 
 ### 課題・他者レビューを踏まえた更新方針
 
-- ドキュメント内のコード例は「動く例」より「安全要件を満たす例」を優先する。
-- レビューで発見された横断課題は、単一ページ修正で終わらせず index と policy に再反映する。
-- Clean Architecture の責務境界（UseCase/Port/Adapter）と運用要件（監査・再試行）を同時に記述する。
+- コード例は「動く例」より「安全要件と Port 契約を満たす例」を優先する。
+- レビュー指摘は `policy.md` → 本 index → 個別 CA 設計書の順に逆流反映し、SSOT を崩さない。
+- UseCase/Port/Adapter の責務と運用要件（監査・再試行・縮退パス）を同じ節内でセット記述する。
 
 ## 横断パターン { #横断パターン }
 
@@ -164,5 +166,4 @@ AWS の利用は **Cognito のみ**（SES/SQS/SNS/S3/DynamoDB/RDS/EC2/EKS/Elasti
 
 ---
 
-最終更新: 2026-04-19 ポリシー適用（追加設計プラン反映）
-
+最終更新: 2026-04-19 ポリシー適用（追加設計プラン反映・Iteration-02 再整理）

@@ -1,6 +1,6 @@
 # Timeline API
 
-`recuerdo-timeline-svc` が提供するタイムライン・フィード取得APIです。
+`recerdo-timeline` が提供するタイムライン・フィード取得APIです。
 
 ---
 
