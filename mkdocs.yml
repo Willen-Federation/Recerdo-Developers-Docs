@@ -163,6 +163,7 @@ nav:
 
   - コアプラットフォーム:
     - core/index.md
+    - AIエージェントコンテキスト (CLAUDE.md): CLAUDE.md
     - 基本的方針 (ポリシー): core/policy.md
     - ネイティブアプリ方針 (iOS/macOS/Android/Desktop): core/native-app-guidelines.md
     - 開発ワークフロー (Workflow): core/workflow.md
@@ -175,11 +176,16 @@ nav:
     - PoC/Beta スコープ定義: core/poc-beta-scope.md
     - サーバーキャパシティ計画: core/server-capacity-planning.md
     - ファイアウォール & データプロテクション: core/firewall-data-protection.md
+    - スプリント報告:
+      - Issue 分解スプリント: core/sprints/2026-04-20-issue-decomposition.md
     - Architecture Decision Records:
       - core/adr/README.md
       - ADR-0001 命名規約: core/adr/0001-naming-convention.md
       - ADR-0002 リポレイアウト (per-service): core/adr/0002-repo-layout-per-service.md
       - ADR-0003 admin-console 配置: core/adr/0003-admin-console-placement.md
       - ADR-0004 audit 配置: core/adr/0004-audit-service-placement.md
+
+  - レポート:
+    - 実装報告: implementation_report.md
 
   - 変更履歴: changelog.md

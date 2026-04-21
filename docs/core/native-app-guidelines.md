@@ -24,7 +24,7 @@
 
 - ビジネスロジックの共有は **gRPC / HTTP + JSON のサーバー API 契約**（[`recerdo-shared-proto`](https://github.com/Willen-Federation/recerdo-shared-proto)）経由で行い、クライアント間でクロスコンパイル・コード共有（KMM / Flutter / RN）は **行わない**。
 - UI は各 OS の設計指針（Apple HIG / Material 3）に準拠する。
-- 認証は AWS Cognito（Hosted UI、OAuth 2.0 / PKCE）、プッシュ通知は FCM。これらは [policy.md §1](policy.md#11-beta-フェーズclosed-beta--open-beta) の通り。
+- 認証は AWS Cognito（Hosted UI、OAuth 2.0 / PKCE）、プッシュ通知は FCM。これらは [policy.md §1](policy.md#11-beta-closed-beta-open-beta) の通り。
 
 ---
 
@@ -106,7 +106,7 @@ sudo xattr -dr com.apple.quarantine /Applications/Recerdo.app
 | Linux | GitHub Actions (Linux) | GPG 署名（`gpg --detach-sign`） | GitHub Releases / OBS |
 
 - 各パイプラインは **AWS を経由しない**（[policy.md §1.3](policy.md#13-aws-利用ポリシー)）。アーティファクト保管は GitHub Releases + OCI Object Storage（本番）。
-- シークレットは Beta = `sops + age`、本番 = OCI Vault（[policy.md §5](policy.md#5-セキュリティ)）。
+- シークレットは Beta = `sops + age` 、本番 = OCI Vault（[policy.md §5](policy.md#5-セキュリティ)）。
 
 ---
 
