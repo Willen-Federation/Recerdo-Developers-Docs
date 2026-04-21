@@ -44,7 +44,7 @@ for R in recerdo-infra recerdo-core recerdo-shared-proto recerdo-shared-lib \
          recerdo-album recerdo-event recerdo-timeline recerdo-storage \
          recerdo-notifications recerdo-audit recerdo-feature-flag \
          recerdo-permission-management recerdo-admin-system recerdo-admin-cli \
-         recerdo-spa-webclient recerdo-android-dart recerdo-desktop-electron \
+         recerdo-spa-webclient recerdo-android recerdo-desktop-electron \
          Recerdo-iOS Recuerdo_Backend; do
   if [ ! -d "$R" ]; then
     gh repo clone Willen-Federation/$R

@@ -310,11 +310,15 @@ Recerdo は **Scrum / Agile** で開発する。Sprint は原則 2 週間、Mile
 - 全 workflow green 必須
 - カバレッジ下限達成必須
 - contract test (buf breaking) pass 必須
+- `detect-empty-tests.sh` pass 必須
+- PR 本文に Red log / Green log / Coverage の 3 点セットを必須化
+- 週次ミューテーションテストのレポートを確認
 
 ### 16.2 手動 QA (merge 前 / release 前)
 - **Release checklist** (`recerdo-infra/qa/release-checklist.md`) を消化
 - **対応エラー時**: デバッグ → fix → CI 再実行 → 全 green までループ
 - **自動編集ポリシー**: CI 失敗の自動修正は lint / fmt のみ許可。テスト / ロジックの自動修正は禁止 (人間 review 経由)
+- 修正 PR では同一テストケースの「修正前 FAIL」と「修正後 PASS」の両ログを添付する
 
 ---
 
@@ -323,6 +327,7 @@ Recerdo は **Scrum / Agile** で開発する。Sprint は原則 2 週間、Mile
 - AI が生成したコードでも**上記の全プロセスに従う** (ラベル / PR / レビュー / テスト)
 - AI 生成と明示するため PR の body に `Generated with <tool>` を任意記載可
 - **AI による自動 rename / 大規模リファクタは事前に人間承認必須**
+- Red / Green / Coverage の証跡が揃わない変更は完了扱いにしない
 
 ---
 
@@ -330,6 +335,7 @@ Recerdo は **Scrum / Agile** で開発する。Sprint は原則 2 週間、Mile
 
 - [ADR-0001 命名規約](adr/0001-naming-convention.md)
 - [Bootstrap Checklist](bootstrap-checklist.md) — 各リポの初期セットアップ
+- [TDD Red-Green プロセス](tdd-process.md)
 - [ProjectTrackerBoard](https://github.com/Willen-Federation/Recerdo-Developers-Docs/issues/21)
 - [Policy](policy.md)
 
