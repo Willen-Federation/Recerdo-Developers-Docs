@@ -320,6 +320,7 @@ Recerdo は **Scrum / Agile** で開発する。Sprint は原則 2 週間、Mile
   - 修正 PR には必ず**「修正前の失敗ログ」と「修正後の成功ログ」の両方を添付**する
   - 両ログに同一テストケース名が含まれていることを CI で確認する
 - **自動編集ポリシー**: CI 失敗の自動修正は lint / fmt のみ許可。テスト / ロジックの自動修正は禁止 (人間 review 経由)
+- 修正 PR では同一テストケースの「修正前 FAIL」と「修正後 PASS」の両ログを添付する
 
 > 詳細な TDD プロセス定義: [docs/core/tdd-process.md](tdd-process.md)
 
@@ -330,6 +331,7 @@ Recerdo は **Scrum / Agile** で開発する。Sprint は原則 2 週間、Mile
 - AI が生成したコードでも**上記の全プロセスに従う** (ラベル / PR / レビュー / テスト)
 - AI 生成と明示するため PR の body に `Generated with <tool>` を任意記載可
 - **AI による自動 rename / 大規模リファクタは事前に人間承認必須**
+- Red / Green / Coverage の証跡が揃わない変更は完了扱いにしない
 
 ### 17.1 TDD 義務 (AI エージェント向け)
 
@@ -354,7 +356,7 @@ AIエージェント (Claude 等) が PR を生成する場合、以下を **必
 
 - [ADR-0001 命名規約](adr/0001-naming-convention.md)
 - [Bootstrap Checklist](bootstrap-checklist.md) — 各リポの初期セットアップ
-- [TDD Red→Green プロセス](tdd-process.md)
+- [TDD Red-Green プロセス](tdd-process.md)
 - [ProjectTrackerBoard](https://github.com/Willen-Federation/Recerdo-Developers-Docs/issues/21)
 - [Policy](policy.md)
 
