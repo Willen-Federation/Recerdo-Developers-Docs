@@ -174,6 +174,7 @@ nav:
     - 環境抽象化 & Feature Flag: core/environment-abstraction.md
     - コストパフォーマンス分析: core/cost-performance-analysis.md
     - PoC/Beta スコープ定義: core/poc-beta-scope.md
+    - タスク依存関係マトリクス & ロードマップ: core/task-dependency-matrix.md
     - サーバーキャパシティ計画: core/server-capacity-planning.md
     - ファイアウォール & データプロテクション: core/firewall-data-protection.md
     - スプリント報告:
