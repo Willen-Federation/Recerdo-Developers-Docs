@@ -165,7 +165,7 @@ nav:
 
   - コアプラットフォーム:
     - core/index.md
-    - AI Agent Context: CLAUDE.md
+    - AIエージェントコンテキスト (CLAUDE.md): CLAUDE.md
     - 基本的方針 (ポリシー): core/policy.md
     - ネイティブアプリ方針 (iOS/macOS/Android/Desktop): core/native-app-guidelines.md
     - 開発ワークフロー (Workflow): core/workflow.md
@@ -192,5 +192,8 @@ nav:
       - ADR-0002 リポレイアウト (per-service): core/adr/0002-repo-layout-per-service.md
       - ADR-0003 admin-console 配置: core/adr/0003-admin-console-placement.md
       - ADR-0004 audit 配置: core/adr/0004-audit-service-placement.md
+
+  - レポート:
+    - 実装報告: implementation_report.md
 
   - 変更履歴: changelog.md

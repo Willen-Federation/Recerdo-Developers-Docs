@@ -163,7 +163,7 @@ Recerdo は **Scrum / Agile** で開発する。Sprint は原則 2 週間、Mile
 
 ---
 
-## 8. コードフォーマッター
+## 8. コードフォーマッター { #8-コードフォーマッター }
 
 | 言語 | Formatter | Linter | 設定ファイル |
 |---|---|---|---|
@@ -308,17 +308,21 @@ Recerdo は **Scrum / Agile** で開発する。Sprint は原則 2 週間、Mile
 
 ### 16.1 自動 QA (CI 内)
 - 全 workflow green 必須
-- カバレッジ下限達成必須
+- カバレッジ下限達成必須 (**≥ 80% line coverage, ≥ 70% branch coverage**)
 - contract test (buf breaking) pass 必須
-- `detect-empty-tests.sh` pass 必須
-- PR 本文に Red log / Green log / Coverage の 3 点セットを必須化
-- 週次ミューテーションテストのレポートを確認
+- **空テスト検出 (`detect-empty-tests.sh`) PASS 必須** — 空テスト・スキップテストが0件であること
+- **PR body に Red log / Green log / Coverage の 3 点セット含有確認** (`pr-checklist.yml`)
+- ミューテーションテスト (週次 cron) の survivor 率 ≤ 30%
 
 ### 16.2 手動 QA (merge 前 / release 前)
 - **Release checklist** (`recerdo-infra/qa/release-checklist.md`) を消化
 - **対応エラー時**: デバッグ → fix → CI 再実行 → 全 green までループ
+  - 修正 PR には必ず**「修正前の失敗ログ」と「修正後の成功ログ」の両方を添付**する
+  - 両ログに同一テストケース名が含まれていることを CI で確認する
 - **自動編集ポリシー**: CI 失敗の自動修正は lint / fmt のみ許可。テスト / ロジックの自動修正は禁止 (人間 review 経由)
 - 修正 PR では同一テストケースの「修正前 FAIL」と「修正後 PASS」の両ログを添付する
+
+> 詳細な TDD プロセス定義: [docs/core/tdd-process.md](tdd-process.md)
 
 ---
 
@@ -328,6 +332,23 @@ Recerdo は **Scrum / Agile** で開発する。Sprint は原則 2 週間、Mile
 - AI 生成と明示するため PR の body に `Generated with <tool>` を任意記載可
 - **AI による自動 rename / 大規模リファクタは事前に人間承認必須**
 - Red / Green / Coverage の証跡が揃わない変更は完了扱いにしない
+
+### 17.1 TDD 義務 (AI エージェント向け)
+
+AIエージェント (Claude 等) が PR を生成する場合、以下を **必ず** 実行すること:
+
+1. **先行テスト実装** → 実装前にテストを書き、`FAIL` を確認・記録する
+2. **Red ログ取得** → GitHub Actions の失敗 Run URL を PR body に貼付する
+3. **実装後 Green 確認** → `PASS` + カバレッジを記録し、URL を PR body に貼付する
+4. **カバレッジ閾値達成** → line coverage ≥ 80%, branch coverage ≥ 70% を確認する
+5. **異常系テスト** → ネットワーク断 / タイムアウト / 重複 Key 等のエラーパスを必ずテストする
+
+**禁止行為**:
+- Red ログなしで「テスト済み」と主張すること
+- 空テスト・スキップテストを含む PR を提出すること
+- カバレッジ水増しのために意味のない assertion を追加すること
+
+> 詳細ルール: [docs/core/tdd-process.md §7 AI エージェントへの適用ルール](tdd-process.md#7-ai-エージェント-claude-等-への適用ルール)
 
 ---
 
@@ -341,4 +362,4 @@ Recerdo は **Scrum / Agile** で開発する。Sprint は原則 2 週間、Mile
 
 ---
 
-最終更新: 2026-04-20
+最終更新: 2026-04-22
