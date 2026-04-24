@@ -1,0 +1,28 @@
+services:
+  swagger-ui:
+    image: swaggerapi/swagger-ui:v5.17.14
+    restart: unless-stopped
+    ports:
+      - "8090:8080"
+    environment:
+      SWAGGER_JSON: /api/openapi-template.yaml
+      OAUTH2_REDIRECT_URL: "http://localhost:8090/oauth2-redirect.html"
+      OAUTH_CLIENT_ID: "${COGNITO_APP_CLIENT_ID:-}"
+      OAUTH_USE_PKCE: "true"
+      OAUTH_SCOPES: "openid profile email"
+    volumes:
+      - .:/api:ro
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/"]
+      interval: 10s
+      retries: 3
+
+  redoc:
+    image: redocly/redoc:v2.3.0
+    restart: unless-stopped
+    ports:
+      - "8091:80"
+    environment:
+      SPEC_URL: "/api/openapi-template.yaml"
+    volumes:
+      - .:/usr/share/nginx/html/api:ro

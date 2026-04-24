@@ -1,0 +1,220 @@
+openapi: "3.0.3"
+info:
+  title: "{service_name} API"
+  version: "1.0.0"
+  description: |
+    Recerdo {service_name} REST API. All endpoints require JWT Bearer authentication
+    except `/health` and `/metrics`.
+  contact:
+    email: a.kusama@private.willen.jp
+
+servers:
+  - url: https://api.recerdo.app/v1
+    description: Production
+  - url: https://api.staging.recerdo.app/v1
+    description: Staging
+  - url: http://localhost:8080/v1
+    description: Local
+
+security:
+  - bearerAuth: []
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        JWT RS256 token issued by AWS Cognito User Pool.
+        Obtain via POST /api/auth/token (Cognito Hosted UI or SDK).
+
+  headers:
+    Idempotency-Key:
+      description: |
+        Client-generated unique key (UUID v4) for idempotent mutations.
+        Required for POST/PUT/DELETE endpoints that modify state.
+        Server deduplicates within 24 hours.
+      schema:
+        type: string
+        format: uuid
+        example: "550e8400-e29b-41d4-a716-446655440000"
+
+    X-Request-ID:
+      description: Server-generated correlation ID, echoed back in responses.
+      schema:
+        type: string
+        format: uuid
+
+  schemas:
+    ErrorResponse:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          description: Machine-readable error code (e.g. NOT_FOUND, PERMISSION_DENIED)
+          example: NOT_FOUND
+        message:
+          type: string
+          description: Human-readable error description
+          example: "Resource not found"
+        request_id:
+          type: string
+          format: uuid
+          description: Correlation ID for support
+        details:
+          type: array
+          items:
+            type: object
+            properties:
+              field:
+                type: string
+              reason:
+                type: string
+
+    Pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+          minimum: 1
+          default: 1
+        per_page:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+        total:
+          type: integer
+        total_pages:
+          type: integer
+
+  responses:
+    Unauthorized:
+      description: JWT missing or invalid
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            code: UNAUTHENTICATED
+            message: "JWT token is missing or invalid"
+
+    Forbidden:
+      description: Insufficient permissions
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            code: PERMISSION_DENIED
+            message: "You do not have permission to perform this action"
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            code: NOT_FOUND
+            message: "Resource not found"
+
+    Conflict:
+      description: Duplicate request (idempotency key reused with different body)
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            code: ALREADY_EXISTS
+            message: "A resource with this identifier already exists"
+
+    TooManyRequests:
+      description: Rate limit exceeded
+      headers:
+        Retry-After:
+          schema:
+            type: integer
+          description: Seconds to wait before retrying
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            code: RESOURCE_EXHAUSTED
+            message: "Rate limit exceeded. Retry after 60 seconds"
+
+    InternalServerError:
+      description: Unexpected server error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            code: INTERNAL
+            message: "An unexpected error occurred"
+
+paths:
+  /health:
+    get:
+      summary: Health check
+      description: Returns service health. No authentication required.
+      security: []
+      tags: [Internal]
+      responses:
+        "200":
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [ok, degraded]
+                  version:
+                    type: string
+              example:
+                status: ok
+                version: "1.2.3"
+        "503":
+          description: Service is unavailable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # Add service-specific endpoints below, referencing shared components above.
+  # Example mutation endpoint with Idempotency-Key:
+  #
+  # /resources:
+  #   post:
+  #     summary: Create a resource
+  #     parameters:
+  #       - in: header
+  #         name: Idempotency-Key
+  #         required: true
+  #         schema:
+  #           type: string
+  #           format: uuid
+  #     requestBody:
+  #       required: true
+  #       content:
+  #         application/json:
+  #           schema:
+  #             $ref: "#/components/schemas/CreateResourceRequest"
+  #     responses:
+  #       "201":
+  #         description: Created
+  #       "401":
+  #         $ref: "#/components/responses/Unauthorized"
+  #       "403":
+  #         $ref: "#/components/responses/Forbidden"
+  #       "409":
+  #         $ref: "#/components/responses/Conflict"
+  #       "429":
+  #         $ref: "#/components/responses/TooManyRequests"
+  #       "500":
+  #         $ref: "#/components/responses/InternalServerError"
