@@ -1,13 +1,10 @@
-# Album API
+---
 
 `recerdo-album` が提供するアルバム・メディア管理APIです。
 
 ---
 
-## アルバム管理
-
 ### POST `/api/orgs/{org_id}/albums`
-
 アルバムを新規作成します。
 
 === "Request"
@@ -38,19 +35,16 @@
 ---
 
 ### GET `/api/orgs/{org_id}/albums/{album_id}`
-
 アルバム詳細を取得します。
 
 ---
 
 ### GET `/api/orgs/{org_id}/events/{event_id}/album`
-
 イベントに紐づくアルバムを取得します。
 
 ---
 
 ### GET `/api/orgs/{org_id}/albums`
-
 組織のアルバム一覧を取得します。
 
 **クエリパラメータ**
@@ -63,15 +57,53 @@
 ---
 
 ### PATCH `/api/orgs/{org_id}/albums/{album_id}`
-
 アルバムのメタデータを更新します（タイトル・説明など）。
 
 ---
 
-## メディア管理
+### PUT `/api/v1/albums/status`
+
+アルバムのステータスを変更します。オーナーのみ操作可能です。
+
+| ステータス | 説明 |
+|---|---|
+| `DRAFT` | 下書き（非公開）。作成時のデフォルト。 |
+| `PUBLIC` | 公開。一般ユーザーが閲覧可能。 |
+| `ARCHIVE` | アーカイブ（非公開）。編集・削除不可の保存状態。 |
+
+=== "Request"
+
+    ```json
+    {
+      "album_id": "alb_01JXXXXXXXXX",
+      "status": "PUBLIC"
+    }
+    ```
+
+=== "Response 200"
+
+    ```json
+    {
+      "album_id": "alb_01JXXXXXXXXX",
+      "status": "PUBLIC"
+    }
+    ```
+
+=== "Error responses"
+
+    | コード | 理由 |
+    |---|---|
+    | 400 | `album_id` 未指定 / `status` が無効な値 |
+    | 401 | 未認証 |
+    | 403 | オーナー以外が操作しようとした |
+    | 404 | アルバムが存在しない |
+
+!!! warning "ステータス遷移"
+    ARCHIVE 状態のアルバムへのメディア追加・編集はサービス側で拒否されます（将来実装）。
+
+---
 
 ### POST `/api/orgs/{org_id}/albums/{album_id}/media`
-
 アルバムにメディアを追加します（Storage Serviceでアップロード後のmedia_idを指定）。
 
 === "Request"
@@ -86,13 +118,11 @@
 ---
 
 ### DELETE `/api/orgs/{org_id}/albums/{album_id}/media/{media_id}`
-
 アルバムからメディアを削除します（アルバムからの除外。原本の物理削除は Storage Service の論理削除＋30日保持ポリシーに従う）。
 
 ---
 
 ### POST `/api/orgs/{org_id}/albums/{album_id}/media/reorder`
-
 アルバム内のメディア順序を並び替えます。
 
 === "Request"
@@ -110,7 +140,6 @@
 ---
 
 ### GET `/api/orgs/{org_id}/albums/{album_id}/media`
-
 アルバムのメディア一覧を取得します。Live Photo はペアリング済みの画像+動画を **1件のメディア** として返却します（UI上も1カード扱い）。
 
 === "Response 200"
@@ -145,17 +174,12 @@
 ---
 
 ### PATCH `/api/orgs/{org_id}/albums/{album_id}/media/{media_id}`
-
 メディアのキャプションを更新します。
 
 ---
 
-## ハイライト動画
-
 !!! info "ユーザー選択方式"
     ハイライト動画は **自動生成しません**。ユーザーが `media_ids[]` を明示的に選択して作成します。
-
-### POST `/api/orgs/{org_id}/albums/{album_id}/highlights`
 
 アルバム内メディアから **ユーザーが選択した** メディアでハイライト動画を生成します。
 
